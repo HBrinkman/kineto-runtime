@@ -1,0 +1,56 @@
+[package]
+name = "kineto_engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/HBrinkman/kineto-runtime"
+publish = false
+description = "Kineto runtime engine — animation evaluator, FK solver, state-machine evaluator, vello renderer on iOS Metal."
+
+[lib]
+name = "kineto_engine"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+flatbuffers = "25.12.19"
+# issue #111: image nodes ship their PNG bytes in every .kvk and were never
+# drawn. Decoding needs a real PNG reader; the png crate is pure Rust, so it
+# builds for every target the engine already ships to, wasm included. Not
+# behind the vello feature: the render scene carries decoded pixels whatever
+# backend consumes it, and a test of the decode should not need a GPU crate.
+png = "0.17"
+# issue #111: text nodes exported and never drew, for want of a font. vello
+# already depends on skrifa to rasterise glyphs; the engine needs it directly
+# to map characters to glyph ids and to read advances for layout. Like png,
+# not behind the vello feature: laying text out is backend-independent, and a
+# test of the layout should not need a GPU crate.
+skrifa = "0.36"
+jni = { version = "0.21.1", optional = true }
+ndk-sys = { version = "0.6.0", optional = true }
+pollster = { version = "0.4.0", optional = true }
+raw-window-handle = { version = "0.6.2", optional = true }
+vello = { version = "0.9.0", optional = true, default-features = false }
+wasm-bindgen = { version = "0.2.105", optional = true }
+# issue #111: the web runtime hands the page an array of fired sound ids and
+# a list of the document's sounds, both built with js-sys types.
+js-sys = { version = "0.3.82", optional = true }
+web-sys = { version = "0.3.82", optional = true, features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window"] }
+wgpu = { version = "29.0.3", optional = true, default-features = false, features = ["std", "wgsl"] }
+
+[features]
+default = []
+vello-render = ["dep:vello"]
+metal-render = ["vello-render", "vello/wgpu", "dep:pollster", "dep:wgpu", "wgpu/metal"]
+android-render = ["vello-render", "vello/wgpu", "dep:jni", "dep:ndk-sys", "dep:pollster", "dep:raw-window-handle", "dep:wgpu", "wgpu/vulkan", "wgpu/gles"]
+web-runtime = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys"]
+
+[build-dependencies]
+flatbuffers-build = "0.2.4"
+cbindgen = "0.27"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "advance"
+harness = false

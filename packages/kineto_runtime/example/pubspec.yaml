@@ -1,0 +1,30 @@
+name: kineto_runtime_example
+description: Example app demonstrating kineto_runtime playback.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  kineto_runtime:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  config:
+    enable-swift-package-manager: true
+  uses-material-design: true
+  assets:
+    - assets/sample.kvk
+    - assets/pointer_binding.kvk
+    - assets/parity/

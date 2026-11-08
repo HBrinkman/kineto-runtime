@@ -1,0 +1,37 @@
+name: kineto_runtime
+description: Thin Dart FFI shim for the Kineto Rust runtime engine.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  ffi: ^2.1.3
+  web: ^1.1.1
+
+flutter:
+  assets:
+    - web/pkg/kineto_engine.js
+    - web/pkg/kineto_engine_bg.wasm
+    - web/kineto_runtime_bridge.js
+  plugin:
+    platforms:
+      ios:
+        pluginClass: KinetoRuntimePlugin
+      android:
+        package: app.kineto.runtime.flutter
+        pluginClass: KinetoRuntimePlugin
+      web:
+        pluginClass: KinetoRuntimeWebPlugin
+        fileName: kineto_runtime_web.dart
+
+dev_dependencies:
+  ffigen: ^11.0.0
+  flutter_test:
+    sdk: flutter

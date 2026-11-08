@@ -1,0 +1,62 @@
+group 'app.kineto.runtime.flutter'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'app.kineto.runtime.flutter'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 24
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+// libkineto_engine.so is generated, not committed (docs/BUILDING.md). Say so
+// here: without this the build succeeds and the app dies at the first FFI lookup.
+def checkKinetoEngineLibs = tasks.register('checkKinetoEngineLibs') {
+    def libs = ['arm64-v8a', 'x86_64'].collect {
+        file("src/main/jniLibs/$it/libkineto_engine.so")
+    }
+    doLast {
+        def missing = libs.findAll { !it.isFile() }
+        if (!missing.isEmpty()) {
+            throw new GradleException(
+                "Missing ${missing.join(', ')}.\nRun scripts/build_runtime_android.sh from the repo root.")
+        }
+    }
+}
+tasks.named('preBuild') { dependsOn checkKinetoEngineLibs }

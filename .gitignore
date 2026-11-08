@@ -1,0 +1,57 @@
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# Cargo output. engine/.cargo/config.toml sends it to <repo>/build/cargo when
+# cargo runs from engine/; --manifest-path from elsewhere uses engine/target.
+/build/
+engine/target/
+**/*.dSYM
+
+# Swift / Xcode
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+packages/**/build/
+**/ios/Flutter/.last_build_id
+coverage/
+
+# Node
+node_modules/
+
+# Generated native runtime libraries: built from source, never committed.
+# Rebuild with tool/refresh_runtime_xcframework.sh (iOS) and
+# scripts/build_runtime_android.sh (Android). See docs/BUILDING.md.
+runtimes/swift/KinetoRuntime/Artifacts/KinetoRuntimeC.xcframework/ios-arm64/*.a
+runtimes/swift/KinetoRuntime/Artifacts/KinetoRuntimeC.xcframework/ios-arm64_x86_64-simulator/*.a
+**/src/main/jniLibs/**/libkineto_engine.so
+*.a
+*.so
+*.dylib
+
+# Signing material and local machine config must never be committed.
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.keystore
+*.jks
+key.properties
+local.properties
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc

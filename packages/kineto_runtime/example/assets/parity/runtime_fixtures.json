@@ -1,0 +1,321 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "sample_load_advance",
+      "asset": "packages/kineto_runtime/example/assets/sample.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.016
+        }
+      ],
+      "expect": {
+        "loads": true,
+        "advanceStatus": "ok"
+      }
+    },
+    {
+      "id": "sample_hit_test_empty_point",
+      "asset": "packages/kineto_runtime/example/assets/sample.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "hitTestDocumentPoint",
+          "x": -100000.0,
+          "y": -100000.0
+        }
+      ],
+      "expect": {
+        "nodeId": null
+      }
+    },
+    {
+      "id": "pointer_binding_drives_target",
+      "asset": "packages/kineto_runtime/example/assets/pointer_binding.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "target-hand",
+          "key": "ikTargetPositionX",
+          "value": 100.0
+        },
+        {
+          "op": "setNumber",
+          "stateMachineId": "sm-pointer",
+          "inputName": "pointerX",
+          "value": 0.5
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "target-hand",
+          "key": "ikTargetPositionX",
+          "value": 200.0
+        },
+        {
+          "op": "setNumber",
+          "stateMachineId": "sm-pointer",
+          "inputName": "pointerX",
+          "value": 1.0
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "target-hand",
+          "key": "ikTargetPositionX",
+          "value": 300.0
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "web_canvas2d_render_smoke",
+      "asset": "packages/kineto_runtime/example/assets/sample.kvk",
+      "platform": "browser-web",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "renderToCanvas",
+          "canvasId": "kineto-runtime-canvas"
+        }
+      ],
+      "expect": {
+        "canvasHasContent": true
+      }
+    },
+    {
+      "id": "pointer_event_without_listeners_is_quiet",
+      "asset": "packages/kineto_runtime/example/assets/pointer_binding.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "pointerEvent",
+          "event": "down",
+          "x": 200.0,
+          "y": 200.0,
+          "expectFired": 0
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "layers_body_face_mouth",
+      "_comment": "issue #98: the Body/Face/Mouth layered machine. Advancing 1s in 0.1s frames leaves every layer in its initial state, so Body owns positionX (Idle keys it flat at 0) while Mouth's Closed clip animates only scaleX. The exhaustive per-layer pose table lives in test/fixtures/layers/body_face_mouth_poses.txt and is checked by engine/kineto_engine/tests/layers.rs and the Dart fixture test.",
+      "asset": "engine/kineto_engine/tests/fixtures/body_face_mouth.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.1
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "node-body",
+          "key": "positionX",
+          "value": 0.0
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "node-body",
+          "key": "scaleX",
+          "value": 1.0
+        }
+      ],
+      "expect": {
+        "loads": true,
+        "advanceStatus": "ok"
+      }
+    },
+    {
+      "id": "web_audio_events_and_document_point",
+      "platform": "web",
+      "asset": "engine/kineto_engine/tests/fixtures/sounds_demo.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectAudioEvents",
+          "expect": [
+            "event-click|ClickSound|click.wav",
+            "event-success|Success|success.wav"
+          ]
+        },
+        {
+          "op": "expectTakeFiredAudioEvents",
+          "expect": []
+        },
+        {
+          "op": "expectDocumentPoint",
+          "x": 100.0,
+          "y": 100.0,
+          "surfaceWidth": 400.0,
+          "surfaceHeight": 400.0,
+          "expect": [
+            200.0,
+            100.0
+          ]
+        },
+        {
+          "op": "setTrigger",
+          "stateMachineId": "machine-button",
+          "inputName": "press"
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.016
+        },
+        {
+          "op": "expectTakeFiredAudioEvents",
+          "expect": [
+            "event-click"
+          ]
+        },
+        {
+          "op": "expectTakeFiredAudioEvents",
+          "expect": []
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "background_half_clear_color",
+      "asset": "engine/kineto_engine/tests/fixtures/background_half.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectBackground",
+          "rgba": [
+            204,
+            51,
+            0,
+            128
+          ]
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "background_opaque_clear_color",
+      "asset": "engine/kineto_engine/tests/fixtures/background_opaque.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectBackground",
+          "rgba": [
+            17,
+            34,
+            51,
+            255
+          ]
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "background_off_clear_color",
+      "asset": "engine/kineto_engine/tests/fixtures/background_off.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectBackground",
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    },
+    {
+      "id": "background_legacy_clear_color",
+      "asset": "engine/kineto_engine/tests/fixtures/background_legacy.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "expectBackground",
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "expect": {
+        "loads": true
+      }
+    }
+  ]
+}

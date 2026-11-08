@@ -1,0 +1,6 @@
+.gradle/
+.kotlin/
+local.properties
+KinetoRuntime/build/
+sample/build/
+build/

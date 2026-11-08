@@ -1,0 +1,234 @@
+# Shared blend-seam fixture (issue #96).
+#
+# Read by BOTH sides so the editor and the runtime cannot drift apart:
+#   Dart — test/domain/animation/blend_fixture_test.dart
+#   Rust — engine/kineto_engine/tests/blend.rs
+#
+# Grammar, one directive per line, whitespace separated:
+#   case <name> <ordered|mixed>   starts a case
+#   base <subject> <key> <s|c> <value>    rest-pose value (ordered cases only)
+#   sample <weight> <0|1>         starts a sample; the flag is `enabled`
+#   value <subject> <key> <s|c> <value>   a property the current sample carries
+#   expect <subject> <key> <s|c> <value>  the folded result
+#   absent <subject> <key>        the folded result must not carry this key
+#   end                           closes the case
+#
+# `s` values are decimal; `c` values are 8-digit hex ARGB. Scalars compare
+# within 1e-9; colour channels compare within 1, because a half-way channel
+# rounds to either side of .5 depending on the host's rounding.
+
+# ---------------------------------------------------------------------------
+# Ordered semantics: acc = lerp(acc, sample, weight), in list order.
+# ---------------------------------------------------------------------------
+
+# A lone full-weight sample passes straight through.
+case single_sample ordered
+sample 1 1
+value nodeA positionX s 10
+expect nodeA positionX s 10
+end
+
+# Two full-weight samples: the later one wins the property they share.
+case override_priority ordered
+sample 1 1
+value nodeA positionX s 10
+value nodeA positionY s 1
+sample 1 1
+value nodeA positionX s 20
+expect nodeA positionX s 20
+expect nodeA positionY s 1
+end
+
+# Reversing the order reverses the winner, and nothing else.
+case override_priority_reversed ordered
+sample 1 1
+value nodeA positionX s 20
+sample 1 1
+value nodeA positionX s 10
+expect nodeA positionX s 10
+end
+
+# Sparse: a property nobody produces is absent, so the base document shows.
+case sparse_absent ordered
+sample 1 1
+value nodeA positionX s 10
+expect nodeA positionX s 10
+absent nodeA positionY
+absent nodeB positionX
+end
+
+# Subjects do not bleed into one another.
+case independent_subjects ordered
+sample 1 1
+value nodeA positionX s 1
+sample 1 1
+value nodeB positionX s 2
+expect nodeA positionX s 1
+expect nodeB positionX s 2
+end
+
+# The crossfade shape: [from @ 1, to @ p] resolves to lerp(from, to, p).
+case crossfade_quarter ordered
+sample 1 1
+value nodeA positionX s 0
+sample 0.25 1
+value nodeA positionX s 100
+expect nodeA positionX s 25
+end
+
+case crossfade_midpoint ordered
+sample 1 1
+value nodeA positionX s 0
+sample 0.5 1
+value nodeA positionX s 100
+expect nodeA positionX s 50
+end
+
+# Colours interpolate channel-wise and stay opaque — the whole point of
+# blending values instead of compositing two renders at partial alpha.
+case crossfade_colour ordered
+sample 1 1
+value nodeA fillColor c FF000000
+sample 0.5 1
+value nodeA fillColor c FFFFFFFF
+expect nodeA fillColor c FF808080
+end
+
+# A partial-weight first contribution blends away from the rest pose.
+case base_seeding ordered
+base nodeA positionX s 100
+sample 0.25 1
+value nodeA positionX s 200
+expect nodeA positionX s 125
+end
+
+# With no base for that property, the first contribution lands whole rather
+# than fading toward a phantom zero.
+case no_base_lands_whole ordered
+sample 0.25 1
+value nodeA positionX s 200
+expect nodeA positionX s 200
+end
+
+# A disabled sample contributes nothing and does not even seed a property.
+case disabled_sample ordered
+sample 1 1
+value nodeA positionX s 10
+sample 1 0
+value nodeA positionX s 999
+value nodeA positionY s 999
+expect nodeA positionX s 10
+absent nodeA positionY
+end
+
+# Zero weight is the same result, reached a different way.
+case zero_weight ordered
+sample 1 1
+value nodeA positionX s 10
+sample 0 1
+value nodeA positionX s 999
+expect nodeA positionX s 10
+end
+
+# Weights outside 0..1 clamp.
+case weight_clamped ordered
+sample 1 1
+value nodeA positionX s 0
+sample 4 1
+value nodeA positionX s 100
+expect nodeA positionX s 100
+end
+
+# ---------------------------------------------------------------------------
+# Discrete properties: indices, never interpolated. Winner-takes-all at 0.5.
+# ---------------------------------------------------------------------------
+
+case discrete_below_threshold ordered
+sample 1 1
+value nodeA drawOrder s 1
+sample 0.49 1
+value nodeA drawOrder s 7
+expect nodeA drawOrder s 1
+end
+
+case discrete_at_threshold ordered
+sample 1 1
+value nodeA drawOrder s 1
+sample 0.5 1
+value nodeA drawOrder s 7
+expect nodeA drawOrder s 7
+end
+
+case discrete_blend_mode ordered
+sample 1 1
+value nodeA blendMode s 0
+sample 0.6 1
+value nodeA blendMode s 3
+expect nodeA blendMode s 3
+end
+
+case discrete_solo_index ordered
+sample 1 1
+value nodeA soloIndex s 0
+sample 0.4 1
+value nodeA soloIndex s 3
+expect nodeA soloIndex s 0
+end
+
+# ---------------------------------------------------------------------------
+# Kind conflicts: nothing interpolates across kinds, so 0.5 decides.
+# ---------------------------------------------------------------------------
+
+case kind_conflict_keeps_current ordered
+sample 1 1
+value nodeA positionX s 1
+sample 0.25 1
+value nodeA positionX c FFFF0000
+expect nodeA positionX s 1
+end
+
+case kind_conflict_takes_incoming ordered
+sample 1 1
+value nodeA positionX s 1
+sample 0.75 1
+value nodeA positionX c FFFF0000
+expect nodeA positionX c FFFF0000
+end
+
+# ---------------------------------------------------------------------------
+# Normalised semantics: a weighted mean, for blend trees.
+# ---------------------------------------------------------------------------
+
+case mix_weighted_mean mixed
+sample 0.25 1
+value nodeA positionX s 0
+sample 0.75 1
+value nodeA positionX s 100
+expect nodeA positionX s 75
+end
+
+case mix_normalises_short_weights mixed
+sample 0.1 1
+value nodeA positionX s 0
+sample 0.1 1
+value nodeA positionX s 100
+expect nodeA positionX s 50
+end
+
+case mix_three_points mixed
+sample 0.2 1
+value nodeA positionX s 0
+sample 0.3 1
+value nodeA positionX s 50
+sample 0.5 1
+value nodeA positionX s 100
+expect nodeA positionX s 65
+end
+
+case mix_colour mixed
+sample 0.5 1
+value nodeA fillColor c FF000000
+sample 0.5 1
+value nodeA fillColor c FFFFFFFF
+expect nodeA fillColor c FF808080
+end
