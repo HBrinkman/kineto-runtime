@@ -36,10 +36,16 @@ BSD, Zlib, ISC, CC0-1.0, Unicode-3.0 or Unlicense terms, with two notes:
   under MIT OR Apache-2.0.
 
 The libraries you build from this repository (`.a`, `.so`, `.dylib`, `.wasm`)
-statically link many of these crates. MIT and Apache-2.0 require their
-copyright and license notices to accompany binary distributions. This
-repository does not yet generate that bundled notice text; anyone shipping a
-built library must include it.
+statically link many of these crates. Preserve `licenses/RUST_LICENSE_TEXTS.txt`
+and this notice with binary distributions. That bundle includes the license and
+notice files from the resolved crate sources, plus upstream source-commit
+notices where a published crate omitted them. Retrieval sources are recorded in
+`licenses/upstream-notice-sources.json`. It conservatively includes build-only
+and target-specific dependencies as well. Re-audit and refresh it whenever the
+resolved dependencies change; this is not a legal guarantee.
+
+Gradle's original LICENSE/NOTICE and Flutter's BSD text are retained separately
+under `licenses/`. The Inter font keeps its own adjacent OFL text.
 
 ## Dart and Flutter packages
 
