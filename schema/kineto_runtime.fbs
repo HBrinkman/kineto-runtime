@@ -1,0 +1,1014 @@
+// FlatBuffers schema for Kineto runtime file format (.kvk)
+// Used for: Export from editor → playback in iOS/Android apps
+// Version: 1.0 (M1 scope: static scenes only, no animation)
+
+namespace Kineto;
+
+file_identifier "KRTM";
+file_extension "kvk";
+
+// ── Enums (declared before tables that reference them) ────────────────────────
+
+enum StrokeCap: ubyte {
+  Butt = 0,
+  Round = 1,
+  Square = 2,
+}
+
+enum StrokeJoin: ubyte {
+  Miter = 0,
+  Round = 1,
+  Bevel = 2,
+}
+
+enum StrokeAlign: ubyte {
+  Inside = 0,
+  Center = 1,
+  Outside = 2,
+}
+
+// ── Structs ───────────────────────────────────────────────────────────────────
+
+struct Color {
+  r: ubyte;
+  g: ubyte;
+  b: ubyte;
+  a: ubyte;
+}
+
+// ── Geometry ──────────────────────────────────────────────────────────────────
+
+table Rectangle {
+  width: float;
+  height: float;
+  corner_radius: float = 0.0;
+}
+
+table Ellipse {
+  width: float;
+  height: float;
+}
+
+union Geometry {
+  Rectangle,
+  Ellipse,
+}
+
+// ── Material ──────────────────────────────────────────────────────────────────
+
+table Fill {
+  color: Color;
+  opacity: float = 1.0;
+}
+
+table SolidFill {
+  color: Color;
+  opacity: float = 1.0;
+}
+
+table GradientStop {
+  offset: float;
+  color: Color;
+  opacity: float = 1.0;
+}
+
+enum SpreadMethod: ubyte {
+  Pad = 0,
+  Reflect = 1,
+  Repeat = 2,
+}
+
+table LinearGradientFill {
+  stops: [GradientStop];
+  p0x: float = 0.0;
+  p0y: float = 0.0;
+  p1x: float = 1.0;
+  p1y: float = 0.0;
+  transform_a: float = 1.0;
+  transform_b: float = 0.0;
+  transform_c: float = 0.0;
+  transform_d: float = 1.0;
+  transform_e: float = 0.0;
+  transform_f: float = 0.0;
+  spread: SpreadMethod = Pad;
+}
+
+table RadialGradientFill {
+  stops: [GradientStop];
+  cx: float = 0.5;
+  cy: float = 0.5;
+  fx: float = 0.5;
+  fy: float = 0.5;
+  r: float = 0.5;
+  transform_a: float = 1.0;
+  transform_b: float = 0.0;
+  transform_c: float = 0.0;
+  transform_d: float = 1.0;
+  transform_e: float = 0.0;
+  transform_f: float = 0.0;
+  spread: SpreadMethod = Pad;
+}
+
+union FillKind {
+  SolidFill,
+  LinearGradientFill,
+  RadialGradientFill,
+}
+
+table FillV2 {
+  kind: FillKind;
+}
+
+table Stroke {
+  color: Color;
+  width: float = 1.0;
+  opacity: float = 1.0;
+  cap: StrokeCap = Butt;
+  join: StrokeJoin = Miter;
+  miter_limit: float = 4.0;
+  dash_array: [float];
+  dash_offset: float = 0.0;
+  stroke_fill_v2: FillV2;
+  align: StrokeAlign = Center;
+  // issue #158 (append-only): trim path, as normalized arc-length fractions.
+  // Start/end pick the drawn span; offset slides it along the path and wraps.
+  // The defaults draw the whole stroke, so older files read unchanged.
+  trim_start: float = 0.0;
+  trim_end: float = 1.0;
+  trim_offset: float = 0.0;
+}
+
+// ── Transform ─────────────────────────────────────────────────────────────────
+
+table Transform {
+  x: float = 0.0;
+  y: float = 0.0;
+  rotation: float = 0.0;
+  scale_x: float = 1.0;
+  scale_y: float = 1.0;
+  anchor_x: float = 0.0;
+  anchor_y: float = 0.0;
+}
+
+// ── Effects ───────────────────────────────────────────────────────────────────
+
+table DropShadow {
+  color: Color;
+  opacity: float = 0.35;
+  offset_x: float = 4.0;
+  offset_y: float = 4.0;
+  blur: float = 4.0;
+  spread: float = 0.0;
+  inset: bool = false;
+  enabled: bool = true;
+}
+
+table Blur {
+  amount: float = 4.0;
+  enabled: bool = true;
+}
+
+union EffectKind {
+  DropShadow,
+  Blur,
+}
+
+table EffectEntry {
+  kind: EffectKind;
+}
+
+// ── Scene nodes ───────────────────────────────────────────────────────────────
+
+table Shape {
+  geometry: Geometry;
+  fill: Fill;
+  stroke: Stroke;
+  fill_v2: FillV2;
+  effects: [EffectEntry];
+  fills_v2: [FillV2];
+}
+
+// ── Path (M2) ─────────────────────────────────────────────────────────────────
+
+// Handles are stored **relative to the anchor**: a handle of (0,0) means the
+// segment leaves the anchor straight. A reader must add the anchor before
+// treating one as a Bézier control point.
+struct PathNodeFB {
+  anchor_x: float;
+  anchor_y: float;
+  in_handle_x: float;
+  in_handle_y: float;
+  out_handle_x: float;
+  out_handle_y: float;
+  node_type: ubyte;   // 0=corner 1=smooth 2=symmetric
+}
+
+// M3.7 pressure-aware path node. Kept as a table instead of expanding
+// PathNodeFB because FlatBuffers structs are not safely evolvable.
+table PathNodeFBV2 {
+  anchor_x: float;
+  anchor_y: float;
+  in_handle_x: float;
+  in_handle_y: float;
+  out_handle_x: float;
+  out_handle_y: float;
+  node_type: ubyte = 0;   // 0=corner 1=smooth 2=symmetric
+  pressure: float = 1.0;  // Pencil pressure 0..1
+  // M5: skeletal binding (append-only — never reorder above fields).
+  bone_id: string;          // null = unbound vertex
+  bone_influence: float = 1.0;  // legacy single-weight (M5); deprecated in M5.5 in favour of weights.
+  // M5.5: multi-bone weights (append-only). Null = use bone_id/bone_influence fallback.
+  weights: [BoneWeight];
+}
+
+table Path {
+  nodes: [PathNodeFB];
+  closed: bool = false;
+  fill: Fill;
+  stroke: Stroke;
+  fill_v2: FillV2;
+  nodes_v2: [PathNodeFBV2]; // M3.7 pressure-aware nodes; supersedes nodes.
+  effects: [EffectEntry];
+  fills_v2: [FillV2];
+}
+
+table Group {
+  child_ids: [string];
+  // issue #111 (append-only): the child whose shape clips its siblings.
+  // GroupNode.maskChildId in the editor. Null means no mask, which is what
+  // every file written before this field says.
+  mask_child_id: string;
+}
+
+// ── Text (M3.5) ───────────────────────────────────────────────────────────────
+
+enum TextAlign: ubyte {
+  Left    = 0,
+  Right   = 1,
+  Center  = 2,
+  Justify = 3,
+}
+
+// A single styled text run (M3.8.3). dx/dy are offsets from text node origin.
+table TextRun {
+  content: string;
+  font_family: string;
+  font_size: float = 16.0;
+  font_weight: uint16 = 400;
+  italic: bool = false;
+  color: Color;
+  dx: float = 0.0;
+  dy: float = 0.0;
+}
+
+// issue #111: the virtual camera the whole document is drawn through.
+//
+// Applied about the canvas centre, which is what `frame_renderer.dart:141-147`
+// does — rotate and zoom around the middle, then pan.
+table Camera {
+  x:        float = 0.0;
+  y:        float = 0.0;
+  zoom:     float = 1.0;
+  rotation: float = 0.0;
+}
+
+// issue #111: the font a text node needs, shipped with the document.
+//
+// Text nodes have always exported and never drawn, because the runtime had no
+// font to draw them with. The editor's families are bundled assets, so the
+// exporter can carry the bytes; there is no system-font lookup on the runtime
+// side and deliberately so, since a device that lacks the family would
+// silently substitute another.
+table FontFace {
+  family:  string (required);
+  weight:  uint16 = 400;
+  italic:  bool = false;
+  // The whole TTF/OTF file, as loaded from the editor's asset bundle.
+  data:    [ubyte];
+}
+
+table Text {
+  content: string;
+  font_family: string;
+  font_size: float = 16.0;
+  font_weight: uint16 = 400;
+  italic: bool = false;
+  color: Color;
+  align: TextAlign = Left;
+  width: float;
+  height: float;
+  // M3.8.3: multi-run styled text (appended last — append-only rule).
+  // When non-empty, supersedes the flat content/font_* fields above.
+  runs: [TextRun];
+}
+
+// ── Image (M3.8 raster fallback) ──────────────────────────────────────────────
+
+table Image {
+  width: float;
+  height: float;
+  png_data: [ubyte];
+}
+
+// ── Compound Path (M3.8.9) ───────────────────────────────────────────────────
+
+enum PathFillRule: ubyte {
+  NonZero = 0,
+  EvenOdd = 1,
+}
+
+table PathContour {
+  nodes: [PathNodeFB];
+  closed: bool = false;
+  nodes_v2: [PathNodeFBV2]; // M3.7 pressure-aware nodes; supersedes nodes.
+}
+
+table CompoundPath {
+  contours: [PathContour];
+  fill_rule: PathFillRule = NonZero;
+  fill: Fill;
+  stroke: Stroke;
+  fill_v2: FillV2;
+  fills_v2: [FillV2];
+}
+
+union Component {
+  Shape,
+  Path,
+  Group,
+  Text,
+  Image,
+  CompoundPath,
+}
+
+// The compositing modes KBlendMode offers in the editor. Ordered to match it,
+// and append-only from here.
+enum BlendMode: ubyte {
+  Normal = 0,
+  Multiply = 1,
+  Screen = 2,
+  Overlay = 3,
+  Darken = 4,
+  Lighten = 5,
+  ColorDodge = 6,
+  ColorBurn = 7,
+  HardLight = 8,
+  SoftLight = 9,
+  Difference = 10,
+  Exclusion = 11,
+  Hue = 12,
+  Saturation = 13,
+  Color = 14,
+  Luminosity = 15,
+}
+
+table Node {
+  id: string (required);
+  name: string (required);
+  component: Component;
+  transform: Transform;
+  visible: bool = true;
+  locked: bool = false;
+  opacity: float = 1.0;
+  // issue #111 (append-only): the editor has had 16 blend modes since M11 and
+  // the word "blend" appeared nowhere in this schema, so every node composited
+  // as Normal on device. Normal is the default, which is what older files say.
+  blend_mode: BlendMode = Normal;
+  // issue #111 (append-only, and it must stay last): the z-order the author
+  // gave this node. The runtime drew in document order and could not re-sort,
+  // so a node sent forward or back in the editor did not move on device.
+  //
+  // Added *after* blend_mode on purpose. Slotting it in above shifted
+  // blend_mode's vtable index, and every file written between the two commits
+  // then failed to parse — which the audio_events fixtures caught.
+  draw_order: int32 = 0;
+}
+
+// ── Document root ─────────────────────────────────────────────────────────────
+
+/// Rigidly attaches a whole object to one bone ("Attach to Bone",
+/// `AttachBinding` in the editor). The object's world transform is
+/// `boneWorldNow · offset`, replacing its parent chain; its children compose
+/// under it. The offset is the bind-time `boneWorldBind⁻¹ · targetWorldBind`
+/// as a 2D affine in column order `[a c tx; b d ty]`.
+table AttachBinding {
+  target_id: string (required);
+  bone_id:   string (required);
+  a:  float = 1.0;
+  b:  float = 0.0;
+  c:  float = 0.0;
+  d:  float = 1.0;
+  tx: float = 0.0;
+  ty: float = 0.0;
+}
+
+table Document {
+  version: uint16 = 1;
+  name: string (required);
+  canvas_width: float = 1920.0;
+  canvas_height: float = 1080.0;
+  frame_rate: uint16 = 60;
+  nodes: [Node];
+  // M4 (append-only): animation clips. Absent on pre-M4 files → empty list.
+  animations: [Animation];
+  // M5 (append-only): bone rig. Absent on pre-M5 files → empty list.
+  bones: [Bone];
+  // M5.5 (append-only): IK chains and targets.
+  ik_chains: [IkChain];
+  ik_targets: [IkTarget];
+  // M6 (append-only): state machines. Absent on pre-M6 files → empty list.
+  state_machines: [StateMachine];
+  // issue #74 (append-only): properties driven by a number input.
+  input_bindings: [InputBinding];
+  // issue #111 (append-only): the document's reusable Play Audio events.
+  // Absent on pre-#111 files → empty list.
+  audio_events: [AudioEvent];
+  // issue #111 (append-only): the audio the *timeline* carries, so a runtime
+  // host can play a clip's soundtrack and not just its state machine's
+  // one-shots. Identity only, like the events above — see AudioAssetInfo.
+  audio_assets: [AudioAssetInfo];
+  audio_tracks: [AudioTrack];
+  // issue #111 (append-only): constraints, which drive artwork from a target.
+  constraints: [Constraint];
+  // issue #111 (append-only): the fonts the document's text nodes need,
+  // deduplicated by family and weight. Empty on pre-#111 files, and on any
+  // document with no text.
+  fonts: [FontFace];
+  // issue #111 (append-only): the virtual camera (M11). The editor has drawn
+  // through one since M11 and the runtime had no camera at all, so a document
+  // that panned or zoomed sat still on device. Null means identity.
+  camera: Camera;
+  // Append-only: Attach to Bone bindings. Without them an object attached to
+  // a bone stood still on device while the bone moved in the editor.
+  attach_bindings: [AttachBinding];
+  // issue #233 (append-only): the artboard's background, straight (not
+  // premultiplied) RGBA. Absent — every pre-#233 file, and any artboard whose
+  // "Include background in .kvk" is off — means transparent, so existing
+  // exports render exactly as before. Alpha 0 is the same as absent. A runtime
+  // clears the whole surface to it before painting any node; a surface that
+  // stores premultiplied colour multiplies rgb by alpha first.
+  background: Color;
+}
+
+root_type Document;
+
+// ── M4: Animation ─────────────────────────────────────────────────────────────
+//
+// All tables are append-only after the `m4` tag. Pre-M4 `.kvk` files load with
+// Document.animations == null (treated as empty list by the runtime).
+
+enum LoopMode: ubyte {
+  OneShot  = 0,
+  Loop     = 1,
+  PingPong = 2,
+}
+
+/// Interpolation kind stored per-keyframe (outgoing from that keyframe).
+enum KeyframeInterpolationKind: ubyte {
+  Hold      = 0,
+  Linear    = 1,
+  Bezier    = 2,
+  AutoBezier = 3,
+}
+
+/// Normalised Bézier control-point handle (X ∈ [0,1], Y unclamped).
+struct BezierHandle {
+  x: float;
+  y: float;
+}
+
+table KFKeyframe {
+  id:              string (required);
+  time:            float;
+  /// Scalar value (used for non-colour properties).
+  scalar_value:    float;
+  /// Colour as ARGB uint32 (used when is_color == true).
+  color_value:     uint32;
+  is_color:        bool = false;
+  interpolation:   KeyframeInterpolationKind = Linear;
+  /// Bezier outgoing handle (valid when interpolation == Bezier).
+  bezier_out:      BezierHandle;
+  /// Bezier incoming handle on this keyframe (valid when interpolation == Bezier).
+  bezier_in:       BezierHandle;
+  // issue #111 (append-only): one complete vertex snapshot, for a `pathData`
+  // morph. Empty on every other keyframe. The morph used to export as a
+  // PositionX of 0.0 — the "closest analogue" — so a morphing shape teleported
+  // to x=0 instead of changing shape.
+  path_vertices:   [PathNodeFBV2];
+}
+
+/// AnimatedProperty enum values match the Dart enum ordinal order.
+/// Append-only — M4.5 appends effect properties at the end.
+enum AnimatedPropertyKind: ubyte {
+  PositionX     = 0,
+  PositionY     = 1,
+  Rotation      = 2,
+  ScaleX        = 3,
+  ScaleY        = 4,
+  AnchorX       = 5,
+  AnchorY       = 6,
+  Opacity       = 7,
+  FillColor     = 8,
+  StrokeColor   = 9,
+  StrokeWidth   = 10,
+  SkewX         = 11,
+  SkewY         = 12,
+  Width         = 13,
+  Height        = 14,
+  CornerRadius  = 15,
+  FontSize      = 16,
+  LetterSpacing = 17,
+  LineHeight    = 18,
+  // M5 — append only:
+  BoneRotation         = 19,
+  IkTargetPositionX    = 20,
+  IkTargetPositionY    = 21,
+  // issue #111 (append-only). Each of these used to be exported under an
+  // unrelated kind as the "closest analogue", so the runtime animated the
+  // wrong property; they were then dropped rather than aliased, and now they
+  // have kinds of their own.
+  BoneLength           = 22,
+  ConstraintStrength   = 23,
+  ConstraintOffset     = 24,
+  GradientStopColor    = 25,
+  GradientStopOpacity  = 26,
+  GradientStopOffset   = 27,
+  CameraX              = 28,
+  CameraY              = 29,
+  CameraZoom           = 30,
+  CameraRotation       = 31,
+  PathData             = 32,
+  // issue #158 (append-only): stroke trim, now that renderers draw it.
+  StrokeTrimStart      = 33,
+  StrokeTrimEnd        = 34,
+  StrokeTrimOffset     = 35,
+}
+
+table KFTrack {
+  id:             string (required);
+  target_node_id: string (required);
+  property:       AnimatedPropertyKind;
+  keyframes:      [KFKeyframe];
+}
+
+table Animation {
+  id:         string (required);
+  name:       string (required);
+  duration:   float = 1.0;
+  frame_rate: uint16 = 60;
+  tracks:     [KFTrack];
+  loop:       bool = false;
+  loop_mode:  LoopMode = OneShot;
+}
+
+// ── M5: Bones & FK ───────────────────────────────────────────────────────────
+//
+// All tables are append-only after the `m5` tag.
+// Pre-M5 .kvk files load with Document.bones == null (treated as empty list).
+
+/// M5: boneRotation + IK target position appended to AnimatedPropertyKind (append-only rule).
+/// Ordinals 19–21 — must not be reordered with existing values.
+// BoneRotation = 19, IkTargetPositionX = 20, IkTargetPositionY = 21
+//   (appended to AnimatedPropertyKind enum above)
+
+table Bone {
+  id:             string (required);
+  parent_id:      string;          // null = root bone
+  local_x:        float = 0.0;
+  local_y:        float = 0.0;
+  local_rotation: float = 0.0;    // radians; clamped to [min_rotation, max_rotation] by FK
+  length:         float = 50.0;
+  min_rotation:   float = -3.14159265;
+  max_rotation:   float = 3.14159265;
+  mirror_of:      string;          // KId of symmetric counterpart, or null
+  // issue #74 (append-only): the Group node that carries this bone, set only
+  // on root bones. Named apart from parent_id on purpose — that one is the
+  // chain, which defines a bone's space; this one is where the rig sits in the
+  // Scene, and carries the whole thing the way a group carries artwork.
+  group_id:       string;
+}
+
+// M5: PathNodeFBV2 extended with bone binding (append-only).
+// bone_id: null = unbound vertex (stays in document space).
+// bone_influence: reserved for M5.5 weighted skinning; always 1.0 in M5.
+// These fields are appended after existing PathNodeFBV2 fields — never reorder.
+// (See PathNodeFBV2 above — fields bone_id, bone_influence, weights appended there.)
+
+// M5: Document extended with bones list (append-only — appended after animations).
+// M5.5: Document extended with ik_chains + ik_targets (append-only — after bones).
+// (See Document table above — bones, ik_chains, ik_targets appended there.)
+
+// ── M5.5: IK & Skinning ──────────────────────────────────────────────────────
+//
+// All tables are append-only after the `m5` tag.
+// Pre-M5.5 .kvk files load with Document.ik_chains / ik_targets == null (empty).
+// PathNodeFBV2.weights == null → synthesize single BoneWeight from bone_id (M5 compat).
+
+/// Per-bone influence weight for smooth (multi-bone) skinning.
+/// weights[] always sum to 1.0; M5 degenerate case = single entry, weight = 1.0.
+table BoneWeight {
+  bone_id: string (required);
+  weight:  float = 1.0;
+}
+
+/// Which IK algorithm to use for a chain.
+enum IkSolverKind: ubyte {
+  TwoBone = 0,   // analytic law-of-cosines; only valid for 2-bone chains
+  FABRIK  = 1,   // iterative; supports N-bone + rotation limits
+}
+
+/// An IK chain: links a root bone to an end-effector driven by a target node.
+table IkChain {
+  id:               string (required);
+  root_bone_id:     string (required);
+  effector_bone_id: string (required);
+  target_id:        string (required);  // KId of the IkTarget node
+  solver_kind:      IkSolverKind = FABRIK;
+  // issue #111 (append-only): which way a two-bone chain folds. The editor's
+  // `IkChain.bendDirection`: negative bends one way, positive the other, and 0
+  // (the default, and what pre-#111 files say) means "no hint — read it off
+  // the rest pose", exactly as `resolveTwoBoneBendSign` does.
+  bend_direction:   int8 = 0;
+}
+
+/// An animatable IK target.  Position is in document (world) space.
+/// The runtime updates it from keyframes on each frame before the IK solve.
+// Where a finger has to land for a following target to chase it.
+enum TargetFollowScope: ubyte {
+  Anywhere     = 0,
+  WithinExtent = 1,
+}
+
+// How a following target closes the distance each frame.
+enum TargetFollowFeel: ubyte {
+  Snap   = 0,
+  Smooth = 1,
+  Spring = 2,
+}
+
+table IkTarget {
+  id:            string (required);
+  chain_root_id: string (required);  // KId of IkChain.root_bone_id
+  position_x:    float = 0.0;
+  position_y:    float = 0.0;
+  // issue #74 (append-only): how far an input may carry this point, centred
+  // on its position. Zero is a plain point with nowhere to travel, which is
+  // what every pre-#74 file loads as.
+  extent_w:      float = 0.0;
+  extent_h:      float = 0.0;
+  // issue #74 (append-only): the Group node that carries this target through
+  // the Scene, or null when nothing does. Position stays authored space; the
+  // group's motion is applied on top, exactly as the editor does it.
+  parent_id:     string;
+  // issue #74 (append-only): whether this target catches touch. The same
+  // rectangle read a second way — a binding reads the extent continuously,
+  // a listener reads it discretely.
+  interactive:   bool = false;
+  // issue #111 (append-only): the third interaction mode, "exposes" — the
+  // target's position *is* the pointer's, so a constraint reading it aims
+  // whatever it drives at the finger. None of this travelled before, so a
+  // document set up this way did nothing at all at runtime while the editor's
+  // preview followed the pointer.
+  follows_pointer: bool = false;
+  follow_scope:    TargetFollowScope = Anywhere;
+  follow_feel:     TargetFollowFeel = Snap;
+}
+
+
+// ── M6: State Machines ────────────────────────────────────────────────────────
+//
+// All tables are append-only after the `m6` tag.
+// Pre-M6 .kvk files load with Document.state_machines == null (empty list).
+
+enum InputKind: ubyte {
+  Bool    = 0,
+  Trigger = 1,
+  // issue #74 (append-only): a value in 0..1 that a host, a pointer or the
+  // editor's own slider writes, and that bindings map onto a property.
+  Number  = 2,
+}
+
+enum TransitionConditionKind: ubyte {
+  BoolEquals   = 0,
+  TriggerFired = 1,
+  HasExitTime  = 2,
+}
+
+// issue #111: where a number input's value comes from. The editor drives a
+// pointer-sourced input from the cursor's normalised position; the runtime had
+// no field for it, so the host app had to know and do it itself.
+enum InputSource: ubyte {
+  Manual   = 0,
+  PointerX = 1,
+  PointerY = 2,
+}
+
+table StateMachineInput {
+  id:                 string (required);
+  name:               string (required);
+  kind:               InputKind = Bool;
+  default_bool_value: bool = false;
+  // issue #74 (append-only).
+  default_number_value: float = 0.0;
+  // issue #111 (append-only): pointer-driven inputs. Manual on every older
+  // file, which is what they all were.
+  source: InputSource = Manual;
+}
+
+// issue #111: what kind of state this is. A blend state exported as an
+// animation state with an empty clip id and posed nothing on device.
+enum SMStateKind: ubyte {
+  Animation = 0,
+  Blend1D   = 1,
+  Blend2D   = 2,
+}
+
+// One clip in a blend tree, at its position on the blend axis or plane.
+// `y` is unused for a 1D blend.
+table BlendPoint {
+  clip_id: string (required);
+  x:       float = 0.0;
+  y:       float = 0.0;
+}
+
+table SMState {
+  id:      string (required);
+  name:    string (required);
+  clip_id: string (required);
+  speed:   float = 1.0;
+  graph_x: float = 0.0;
+  graph_y: float = 0.0;
+  // issue #111 (append-only): blend trees. Absent on pre-#111 files, which
+  // read as Animation — the kind they always were.
+  kind:         SMStateKind = Animation;
+  input_id_x:   string;
+  input_id_y:   string;
+  blend_points: [BlendPoint];
+}
+
+table TransitionCondition {
+  kind:               TransitionConditionKind = BoolEquals;
+  input_id:           string;
+  bool_expected:      bool = true;
+  exit_time_seconds:  float = 0.0;
+}
+
+table SMTransition {
+  id:               string (required);
+  from_state_id:    string (required);
+  to_state_id:      string (required);
+  conditions:       [TransitionCondition];
+  duration_seconds: float = 0.15;
+  easing:           ubyte = 1;  // maps to M4 EasingPreset ordinal; see exporter
+  enabled:          bool = true;
+  // issue #111 (append-only): sounds this transition fires when it *starts*.
+  // Not when it ends: the sound belongs to the moment the machine commits to
+  // the move. A runtime that predates this field simply reports nothing.
+  audio_event_ids:  [string];
+}
+
+// ── issue #98: state machine layers ──────────────────────────────────────────
+//
+// A layer is an independent state graph running at the same time as every
+// other layer over one document: its own states, its own transitions, its own
+// single active state and its own clock. Later layers win on the properties
+// they animate — order is priority, and there are no weights or node scopes.
+//
+// Inputs and listeners stay machine-wide (on StateMachine, not here), so every
+// layer reads the same value and a host sets it once.
+table SMLayer {
+  id:               string (required);
+  name:             string (required);
+  enabled:          bool = true;
+  initial_state_id: string;
+  states:           [SMState];
+  transitions:      [SMTransition];
+}
+
+table StateMachine {
+  id:               string (required);
+  name:             string (required);
+  initial_state_id: string;
+  states:           [SMState];
+  transitions:      [SMTransition];
+  inputs:           [StateMachineInput];
+  // issue #74 (append-only): pointer listeners, so a tap can drive an input
+  // without host code. Absent on pre-#74 files → empty list.
+  listeners:        [SMListener];
+
+  // issue #98 (append-only): the layers stacked *above* the base layer,
+  // bottom-first. The base layer stays in this table's own `states` /
+  // `transitions` above, which is what keeps the change additive: a pre-layers
+  // file has `layers == null` and evaluates exactly as it always did, and a
+  // runtime that predates this field still reads the base layer correctly —
+  // it just does not see the extra layers. `base_layer_name` and
+  // `base_layer_enabled` carry what a SMLayer would have carried for it.
+  layers:              [SMLayer];
+  base_layer_name:     string;   // absent → "Base"
+  base_layer_enabled:  bool = true;
+}
+
+// ── issue #74: pointer listeners ──────────────────────────────────────────────
+
+enum ListenerEventKind: ubyte {
+  PointerDown = 0,
+  PointerUp   = 1,
+  PointerEnter = 2,
+  PointerExit  = 3,
+}
+
+enum ListenerActionKind: ubyte {
+  SetBoolean  = 0,
+  SetNumber   = 1,
+  FireTrigger = 2,
+  // Flips the bool instead of writing boolValue. Appended, so a file written
+  // by an older editor still decodes; a runtime that predates this value will
+  // not know what to do with it, so the iOS side must handle case 3 before a
+  // document using it can ship.
+  ToggleBoolean = 3,
+  // issue #111: plays an audio event instead of writing an input. The one
+  // action that changes nothing about the machine, which is why `input_id` is
+  // no longer required. A runtime that predates this value must ignore the
+  // listener rather than guess — see the `input_id` note below.
+  PlayAudio = 4,
+}
+
+table SMListener {
+  id:           string (required);
+  // A shape or an interactive target: a listener asks "was this touched", and
+  // both kinds of thing can answer.
+  subject_id:   string (required);
+  // The input this listener writes.
+  //
+  // issue #111 dropped `(required)`: a `PlayAudio` listener writes no input at
+  // all. Every listener written before that carries one, so old files decode
+  // unchanged — but a runtime reading a *new* file must not assume the field
+  // is present. The rule is: read the action first, and only read `input_id`
+  // for the four input-writing actions.
+  input_id:     string;
+  event:        ListenerEventKind = PointerDown;
+  action:       ListenerActionKind = SetBoolean;
+  bool_value:   bool = false;
+  number_value: float = 0.0;
+  // issue #111 (append-only): the sound a `PlayAudio` listener fires.
+  audio_event_id: string;
+}
+
+// ── issue #111: constraints ──────────────────────────────────────────────────
+//
+// A constraint drives one object from another: an iris that follows a target,
+// a limb that aims at a hand. `constrained_id` is what moves — a bone or, just
+// as often, an artwork node — and `source_id` is what it follows, which may be
+// a node, a bone or an IK target.
+//
+// The field is called `constrained_id` rather than the editor's historical
+// `targetBoneId`, because "target" here means the thing being followed, and
+// the two readings sat one field apart.
+//
+// Absent on pre-#111 files → empty list, and a runtime that predates this
+// simply poses nothing from them.
+enum ConstraintKind: ubyte {
+  Aim      = 0,
+  Copy     = 1,
+  Distance = 2,
+  // Authoring-only so far: the runtime reports these rather than solving them,
+  // so a document that uses one is not silently half-posed.
+  FollowPath = 3,
+  Transform  = 4,
+}
+
+table Constraint {
+  id:             string (required);
+  kind:           ConstraintKind = Aim;
+  constrained_id: string (required);
+  source_id:      string (required);
+  strength:       float = 1.0;
+  // Aim: an extra rotation applied after aiming, in radians.
+  offset_radians: float = 0.0;
+  // Copy: which channels travel, and whether they invert.
+  copy_rotation:  bool = true;
+  copy_position:  bool = false;
+  copy_scale:     bool = false;
+  invert:         bool = false;
+  // The source's scale when the constraint was made. Scale copying is
+  // *relative* — the constrained object keeps its own size and follows how
+  // much the source has grown since — so 1.0 means "no reference captured".
+  scale_reference_x: float = 1.0;
+  scale_reference_y: float = 1.0;
+  // Keep the difference the two objects had when they were linked, rather
+  // than snapping onto the source. The offsets are captured at the moment it
+  // is switched on.
+  maintain_offset: bool = false;
+  offset_rotation: float = 0.0;
+  offset_x:        float = 0.0;
+  offset_y:        float = 0.0;
+  // Optional limits on the result: rotation in radians, scale as a factor.
+  // The `has_` flags carry "no limit", which 0 cannot.
+  min_rotation:     float = 0.0;
+  has_min_rotation: bool = false;
+  max_rotation:     float = 0.0;
+  has_max_rotation: bool = false;
+  min_scale:        float = 0.0;
+  has_min_scale:    bool = false;
+  max_scale:        float = 0.0;
+  has_max_scale:    bool = false;
+  // Which space the source is read in, and the result written in.
+  // 0 = world, 1 = local.
+  source_space:   ubyte = 0;
+  dest_space:     ubyte = 0;
+  // Distance: the ring the constrained object is held against, following the
+  // editor's model — one distance plus a rule about which side of it the
+  // object may sit on.
+  min_distance:   float = 0.0;
+  max_distance:   float = 100.0;
+  // Set when the author pinned a specific distance; `has_distance` says so,
+  // because 0 is a legitimate value.
+  distance:       float = 0.0;
+  has_distance:   bool = false;
+  distance_mode:  ubyte = 0;  // 0 = closer, 1 = exactly, 2 = further
+  has_mode:       bool = false;
+}
+
+// ── issue #111: audio events ─────────────────────────────────────────────────
+//
+// A named sound a state machine can fire: `Audio Asset → Audio Event →
+// Trigger`. A transition names events in `SMTransition.audio_event_ids`; a
+// pointer listener names one in `SMListener.audio_event_id`.
+//
+// **The package carries no audio bytes.** A `.kvk` holds animation and state
+// machines; the sound files are the host app's, exactly as they are for Rive
+// and Lottie. What travels is the *identity* of the sound — its id, the name
+// the author gave it, and the name of the file it was authored against — so a
+// host can map an event onto whatever it ships and play it when the runtime
+// reports the firing. `asset_id` is the editor's own id for that file; it is
+// meaningless outside the project, and is carried only so a host that also
+// exports the assets can match them up.
+table AudioEvent {
+  id:          string (required);
+  name:        string (required);
+  asset_id:    string (required);
+  source_name: string;
+}
+
+// ── issue #111: timeline audio ───────────────────────────────────────────────
+//
+// The sound an animation clip carries, as opposed to the one-shots a state
+// machine fires. Same rule as everything else audio in a `.kvk`: **the bytes
+// stay out**. What travels is enough for a host to recognise the file it
+// ships and to place it in time.
+table AudioAssetInfo {
+  id:        string (required);
+  // The file name the asset was imported from, which is how a host matches
+  // it against its own bundle.
+  name:      string (required);
+  mime_type: string;
+  // Seconds. Needed to bound a clip that runs to the end of the asset.
+  duration:  float = 0.0;
+}
+
+// One audio clip placed on an animation clip's timeline.
+//
+// The timing contract is the editor's, unchanged: the clip occupies
+// `[start_time, start_time + duration)` on its animation clip's timeline;
+// `offset` is the in-point inside the asset; when `loop` is false the source
+// window is `[offset, offset + duration)` and anything past the end of the
+// asset is silence; when `loop` is true the window `[offset, asset duration)`
+// repeats. `duration <= 0` means "to the end of the asset from `offset`".
+table AudioTrack {
+  id:          string (required);
+  asset_id:    string (required);
+  // The animation clip this audio belongs to.
+  clip_id:     string (required);
+  start_time:  float = 0.0;
+  offset:      float = 0.0;
+  duration:    float = 0.0;
+  volume:      float = 1.0;
+  loop:        bool = false;
+  mute:        bool = false;
+}
+
+// ── issue #74: property bindings ──────────────────────────────────────────────
+//
+// A binding is a live keyframe: the same subject and the same
+// AnimatedPropertyKind a track would carry, with the value coming from a
+// number input rather than from keyframes. The runtime applies it over the
+// animation's own overrides, so a bound property wins on the frames where both
+// have something to say.
+//
+// Where the range comes from depends on the property. Spatial properties
+// (IkTargetPositionX/Y) leave has_mapping false and read the target's extent —
+// the box authored on canvas. Everything else carries an explicit range in the
+// property's own units.
+
+table InputBinding {
+  id:          string (required);
+  input_id:    string (required);
+  subject_id:  string (required);  // node, bone or target id
+  property:    AnimatedPropertyKind = PositionX;
+  has_mapping: bool = false;
+  mapping_min: float = 0.0;
+  mapping_max: float = 0.0;
+  // Flips which end of the range the input's zero lands on. Only meaningful
+  // for the spatial case; a typed mapping writes its range backwards instead.
+  invert:      bool = false;
+}

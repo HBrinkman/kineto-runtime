@@ -1,0 +1,21 @@
+# Stroke trim windows (issue #158) — shared by the Dart, Swift and Rust tests
+# so the editor canvas, the export renderer and the runtime agree on which
+# span of a path a trimmed stroke draws.
+#
+# start end offset open|closed => full | none | from:to [from:to]
+# `full` draws the untouched stroke, `none` draws nothing, otherwise the
+# spans are fractions of the path's arc length in path order.
+0 1 0 open => full
+0 1 0.3 closed => full
+0.25 0.25 0 open => none
+0 0.5 0 open => 0:0.5
+0.2 0.7 0 closed => 0.2:0.7
+0.7 0.2 0 open => 0.2:0.7
+-1 2 0 open => full
+0 0.5 0.25 open => 0.25:0.75
+0 0.5 1.25 open => 0.25:0.75
+0 0.5 -0.25 open => 0:0.25 0.75:1
+0.5 1 0.25 open => 0:0.25 0.75:1
+0.5 1 0.25 closed => 0.75:1.25
+0.6 0.9 0.6 open => 0.2:0.5
+0.6 0.9 0.6 closed => 0.2:0.5

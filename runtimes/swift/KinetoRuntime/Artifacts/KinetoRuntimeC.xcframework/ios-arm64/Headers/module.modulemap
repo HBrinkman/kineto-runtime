@@ -1,0 +1,4 @@
+module KinetoRuntimeC {
+  header "kineto_engine.h"
+  export *
+}

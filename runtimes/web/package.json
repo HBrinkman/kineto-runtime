@@ -1,0 +1,20 @@
+{
+  "name": "@kineto/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "files": [
+    "pkg",
+    "src"
+  ],
+  "scripts": {
+    "build:wasm": "../../scripts/build_runtime_web.sh",
+    "test:parity": "node ../parity/run_wasm_parity.mjs",
+    "test:flutter-web-smoke": "node ../parity/run_flutter_web_smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.0"
+  }
+}

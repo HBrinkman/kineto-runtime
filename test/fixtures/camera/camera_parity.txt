@@ -1,0 +1,10 @@
+# Camera parity (issue #202): the camera affine at time t, as
+# a b c d e f — x' = a·x + c·y + e, y' = b·x + d·y + f — in
+# the exported artboard's space. Written by
+# test/tool/camera_parity_fixture_test.dart.
+canvas 800.0 450.0
+frame 0.0 1.000000 0.000000 -0.000000 1.000000 0.000000 0.000000
+frame 0.5 1.033333 0.000000 -0.000000 1.033333 -27.253770 -23.000000
+frame 1.5 1.225000 0.000000 -0.000000 1.225000 -237.000000 -105.750000
+frame 2.25 1.352186 0.274102 -0.274102 1.352186 -343.307865 -337.442473
+frame 3.0 1.421097 0.288071 -0.288071 1.421097 -418.759567 -407.010548

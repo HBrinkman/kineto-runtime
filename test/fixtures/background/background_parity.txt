@@ -1,0 +1,7 @@
+# Artboard background parity (issue #233): the straight RGBA
+# a runtime clears to, or "none" for transparent. Written by
+# test/tool/background_parity_fixture_test.dart.
+background_half 204 51 0 128
+background_opaque 17 34 51 255
+background_off none
+background_legacy none

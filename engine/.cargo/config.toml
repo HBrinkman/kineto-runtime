@@ -1,0 +1,19 @@
+# Cargo's output goes into the Flutter build directory, not into engine/target.
+#
+# `flutter build ios` runs `xattr -r -d com.apple.provenance` over every
+# top-level entry of the project and skips exactly one: the Flutter build
+# directory (`mac.dart:788-795`). engine/ was walked purely for being a
+# top-level directory — nothing in the iOS build references it — and with a few
+# gigabytes of cargo output inside, that step took many minutes on every build.
+#
+# A relative target-dir resolves against the directory holding this file, not
+# the working directory, so this lands at <repo>/build/cargo wherever cargo is
+# invoked from.
+#
+# Consequences, both deliberate:
+#   - `flutter clean` deletes build/, and therefore the cargo cache. The next
+#     build is cold. See docs/BUILDING.md.
+#   - CARGO_TARGET_DIR still wins if it is set, which is how CI or a developer
+#     who wants the cache elsewhere overrides this.
+[build]
+target-dir = "../build/cargo"
