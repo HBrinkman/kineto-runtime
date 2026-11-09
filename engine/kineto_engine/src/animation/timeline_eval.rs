@@ -60,7 +60,7 @@ impl NodeOverrides {
 /// Every key `property_key` can produce, so a key that has been through a
 /// `String` (the layer blend seam works on owned keys) can be mapped back to
 /// the `&'static str` `NodeOverrides` stores (issue #98).
-pub const PROPERTY_KEYS: [&str; 36] = [
+pub const PROPERTY_KEYS: [&str; 40] = [
     "positionX",
     "positionY",
     "rotation",
@@ -97,6 +97,10 @@ pub const PROPERTY_KEYS: [&str; 36] = [
     "strokeTrimStart",
     "strokeTrimEnd",
     "strokeTrimOffset",
+    "soloIndex",
+    "drawOrder",
+    "bonePositionX",
+    "bonePositionY",
 ];
 
 /// The `&'static str` form of `key`, or `None` when it is not a property key
@@ -147,6 +151,10 @@ pub fn property_key(kind: AnimatedPropertyKind) -> &'static str {
         AnimatedPropertyKind::StrokeTrimStart => "strokeTrimStart",
         AnimatedPropertyKind::StrokeTrimEnd => "strokeTrimEnd",
         AnimatedPropertyKind::StrokeTrimOffset => "strokeTrimOffset",
+        AnimatedPropertyKind::SoloIndex => "soloIndex",
+        AnimatedPropertyKind::DrawOrder => "drawOrder",
+        AnimatedPropertyKind::BonePositionX => "bonePositionX",
+        AnimatedPropertyKind::BonePositionY => "bonePositionY",
         // FlatBuffers generates enums as newtype structs, not Rust enums, so
         // the compiler cannot force this match to be exhaustive the way the
         // editor-side ledger is (`lib/src/data/runtime_capabilities.dart`).
