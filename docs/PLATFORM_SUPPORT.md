@@ -35,6 +35,22 @@ GPU drivers.
 Android ABIs: `arm64-v8a` and `x86_64` only. iOS: device `arm64`, simulator
 `arm64` + `x86_64`.
 
+## Document versions
+
+| `Document.version` | Adds | A runtime that only reads version 1 |
+| --- | --- | --- |
+| 1 | everything before pose features | — |
+| 2 | `Group.solo_child_id`; `SoloIndex`, `DrawOrder`, `BonePositionX`, `BonePositionY` track kinds | ignores them: every child of a swap group draws, siblings keep file order, joints stay where the file put them |
+
+Writers set 2 only when a file uses one of these, so a file without them is
+unchanged. This runtime reads both. The fields are appended, so the C ABI and
+the wasm API are unchanged. `DrawOrder` is a position among siblings (the other
+children of the same group, or the other root nodes), never a scene-wide
+z-index. Evidence: `engine/kineto_engine/tests/pose_runtime.rs` (host, per
+frame against an editor-generated table) and the `pose_*` / `scene_swap_*`
+entries in `runtimes/parity/runtime_fixtures.json` (wasm in Node; Android and
+Flutter runners read the same table but were not run here).
+
 ## Known limits
 
 - Audio: a `.kvk` carries no audio bytes. Every runtime reports which sound
