@@ -24,20 +24,27 @@ if command -v rustup >/dev/null 2>&1; then
   rustup target add wasm32-unknown-unknown
 fi
 
+# The wasm is committed and bundled into the Flutter package: remap the
+# checkout, cargo home and target directory out of panic locations so no local
+# path is distributed (same flags as the iOS and Android builds).
+TARGET_DIR="$(
+  cargo metadata --manifest-path "$ENGINE_DIR/Cargo.toml" --format-version 1 --no-deps |
+    python3 -I -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])'
+)"
+CARGO_HOME_DIR="${CARGO_HOME:-$HOME/.cargo}"
+# rustc applies the last matching prefix: the target dir goes last.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$CARGO_HOME_DIR=/cargo --remap-path-prefix=$ROOT_DIR=/kineto-runtime --remap-path-prefix=$TARGET_DIR=/kineto-build --remap-path-prefix=$ROOT_DIR/engine/../build/cargo=/kineto-build"
+
 cargo build \
+  --locked \
   --manifest-path "$ENGINE_DIR/Cargo.toml" \
   -p kineto_engine \
   --target wasm32-unknown-unknown \
   --features web-runtime \
   --release
 
-# Ask cargo where it wrote the wasm: engine/.cargo/config.toml moves the
-# target dir to <repo>/build/cargo, so engine/target would be a stale (or
-# missing) artifact. Same approach as tool/refresh_runtime_xcframework.sh.
-TARGET_DIR="$(
-  cargo metadata --manifest-path "$ENGINE_DIR/Cargo.toml" --format-version 1 --no-deps |
-    python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])'
-)"
+# TARGET_DIR (above) is asked of cargo: engine/.cargo/config.toml can move the
+# target dir to <repo>/build/cargo, so engine/target could be stale or missing.
 WASM_IN="$TARGET_DIR/wasm32-unknown-unknown/release/kineto_engine.wasm"
 if [[ ! -f "$WASM_IN" ]]; then
   echo "built wasm not found at $WASM_IN" >&2
