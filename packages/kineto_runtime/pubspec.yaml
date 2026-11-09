@@ -1,6 +1,21 @@
 name: kineto_runtime
-description: Thin Dart FFI shim for the Kineto Rust runtime engine.
+description: >-
+  Plays Kineto runtime documents (.kvk) in Flutter: animations, state machines
+  and touch, rendered by the Kineto Rust engine on iOS, Android and the web.
 version: 0.1.0
+homepage: https://Kineto.keyvotion.com
+repository: https://github.com/HBrinkman/kineto-runtime
+issue_tracker: https://github.com/HBrinkman/kineto-runtime/issues
+documentation: https://Kineto.keyvotion.com/docs/
+topics:
+  - animation
+  - state-machine
+  - ffi
+  - wasm
+  - runtime
+# This checkout is not publishable: it has no prebuilt native libraries and
+# links into runtimes/. scripts/package_flutter.sh stages the publishable
+# package (libraries bundled, links resolved) and drops this line there only.
 publish_to: none
 
 environment:

@@ -108,6 +108,9 @@ cmd_test() {
   say "==> web contract: committed wasm against the shared fixtures"
   have node || fail "node is required for the wasm parity runner"
   (cd "$ROOT/runtimes/web" && node ../parity/run_wasm_parity.mjs)
+  python3 -I "$ROOT/tool/check_binary_paths.py" "$ROOT/runtimes/web/pkg/kineto_engine_bg.wasm"
+  cmp -s "$ROOT/packages/kineto_runtime/LICENSE" "$ROOT/LICENSE" ||
+    fail "packages/kineto_runtime/LICENSE must be a copy of LICENSE"
   cmp -s "$ROOT/runtimes/web/pkg/kineto_engine_bg.wasm" "$ROOT/packages/kineto_runtime/web/pkg/kineto_engine_bg.wasm" ||
     fail "runtimes/web/pkg and packages/kineto_runtime/web/pkg disagree; rerun scripts/build_runtime_web.sh"
 
