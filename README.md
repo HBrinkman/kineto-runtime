@@ -13,6 +13,11 @@ this repository contains only the runtime.
 is published to CocoaPods, Swift Package registries, Maven, npm or pub.dev.
 Use a pinned commit SHA and build from source. Interfaces may still change.
 
+The Swift and Flutter packages can be staged for distribution
+(`scripts/package_swift.sh`, `scripts/package_flutter.sh`), with prebuilt
+binaries, checksums and license notices; publishing them is a separate,
+manual step that has not happened. See [docs/RELEASING.md](docs/RELEASING.md).
+
 No platform has been tested on physical hardware. See
 [docs/PLATFORM_SUPPORT.md](docs/PLATFORM_SUPPORT.md) for what is verified, and
 how.
@@ -23,11 +28,12 @@ how.
 | --- | --- |
 | `engine/kineto_engine` | Rust engine: document loading, animation, bones/IK, constraints, state machines, listeners, audio events, vello rendering; C ABI, JNI and wasm bindings |
 | `schema/kineto_runtime.fbs` | `.kvk` document format (FlatBuffers) |
-| `runtimes/swift/KinetoRuntime` | Swift package for iOS (Metal) |
+| `Package.swift`, `runtimes/swift/KinetoRuntime` | Swift package for iOS (Metal) |
 | `runtimes/android` | Kotlin library for Android, and a sample host |
 | `runtimes/web` | ES module + wasm (Canvas 2D rendering) |
 | `packages/kineto_runtime` | Flutter plugin (iOS, Android, web) and example app |
 | `runtimes/parity` | fixture table every runtime is checked against |
+| `examples/` | example apps: iOS (SwiftUI), web; index of the Android and Flutter ones |
 
 ## Getting started
 
@@ -44,14 +50,15 @@ scripts/bootstrap.sh test    # engine, web and Flutter host checks
 Install paths, in short:
 
 - **iOS (Swift):** build the libraries (`scripts/bootstrap.sh ios`), then add
-  `runtimes/swift/KinetoRuntime` as a *local* package. It cannot be added by
-  repository URL: the manifest is in a subdirectory and the binaries are built
-  locally.
+  the clone's root as a *local* package (`.package(path:)`). A `.package(url:)`
+  dependency resolves but cannot link until a release publishes the
+  XCFramework zip: the binaries are not in Git.
 - **Android:** build the libraries (`scripts/bootstrap.sh android`), then
   include `runtimes/android/KinetoRuntime` as a Gradle module.
 - **Flutter:** path dependency on `packages/kineto_runtime` in a clone with
   native libraries built. A Git dependency (`path: packages/kineto_runtime`)
-  works for the Dart API and web only.
+  works for the Dart API and web only. The publishable package, with the
+  libraries bundled, is staged by `scripts/package_flutter.sh`.
 - **Web:** the committed `runtimes/web` package, via a file dependency or a
   copy.
 

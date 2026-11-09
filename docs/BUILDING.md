@@ -53,11 +53,10 @@ silently. The iOS headers, module map and `Info.plist` are committed.
 
 ## Swift Package (iOS)
 
-`runtimes/swift/KinetoRuntime` is a local Swift package. It is **not usable as
-a remote SwiftPM URL dependency**: its `Package.swift` is in a subdirectory, not
-at the repository root, and its binary target points at libraries that are
-built locally and ignored by Git. There is deliberately no root `Package.swift`
-and no `binaryTarget(url:)` until binaries are published with checksums.
+The repository root has a `Package.swift` (products `KinetoRuntime`, the Swift
+API, and `KinetoRuntimeC`, the raw C ABI). Its binary target is the locally
+built `runtimes/swift/KinetoRuntime/Artifacts/KinetoRuntimeC.xcframework`,
+whose static libraries are ignored by Git, so build them first:
 
 ```sh
 git clone https://github.com/HBrinkman/kineto-runtime.git
@@ -67,21 +66,41 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 scripts/bootstrap.sh ios
 ```
 
-Then add the local package: in Xcode, *File > Add Package Dependencies… > Add
-Local…* and choose `runtimes/swift/KinetoRuntime`; or from another package:
+Then add the clone as a local package: in Xcode, *File > Add Package
+Dependencies… > Add Local…* and choose the clone's root; or from another
+package:
 
 ```swift
-.package(path: "../kineto-runtime/runtimes/swift/KinetoRuntime")
+.package(path: "../kineto-runtime")
+// target dependency:
+.product(name: "KinetoRuntime", package: "kineto-runtime")
 ```
 
-Platform: iOS 15+ (package manifest). No macOS, tvOS, visionOS or Mac Catalyst
-slice is built.
+A `.package(url:)` dependency on this repository resolves but **does not
+link** until a release sets the manifest's `releasedBinary` to an uploaded,
+checksummed XCFramework zip (none exists yet; see
+[RELEASING.md](RELEASING.md)). `runtimes/swift/KinetoRuntime/Package.swift`
+still works as a local package on its own.
+
+Platform: iOS 15+. Device `arm64`; simulator `arm64` + `x86_64`. No macOS,
+tvOS, visionOS or Mac Catalyst slice is built.
+
+To produce the distributable zip and its checksum, and to build throwaway
+consumer packages against both forms:
+
+```sh
+scripts/package_swift.sh          # build/dist/swift/KinetoRuntimeC.xcframework.zip
+tool/test_swift_consumer.sh       # device + simulator build-for-testing
+```
 
 ## Flutter package
 
-`packages/kineto_runtime` (`publish_to: none`). It contains symlinks into
-`runtimes/` (the Kotlin sources and the Swift package), so it must be used from
-a full checkout of this repository.
+`packages/kineto_runtime` is the development copy (`publish_to: none`). It
+links into `runtimes/` (the Kotlin sources, the iOS XCFramework, `licenses/`)
+and has no native libraries until you build them, so it must be used from a
+full checkout. `scripts/package_flutter.sh` stages the self-contained,
+publishable package with the libraries bundled; see
+[RELEASING.md](RELEASING.md).
 
 **Recommended:** a path dependency on a clone where you have built the native
 libraries for your targets:
