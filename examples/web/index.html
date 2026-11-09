@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kineto web runtime example</title>
+    <style>
+      body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
+      main { max-width: 720px; margin: 0 auto; padding: 16px; }
+      canvas { width: 100%; aspect-ratio: 4 / 3; background: #fff; border: 1px solid #d4d4d8; touch-action: none; }
+      #status { min-height: 1.4em; font-family: ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Kineto web runtime</h1>
+      <p>Loads a <code>.kvk</code> document with the committed wasm runtime and draws it with Canvas 2D. Tap the canvas to send pointer events.</p>
+      <canvas id="kineto-canvas" width="800" height="600"></canvas>
+      <p id="status">loading…</p>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

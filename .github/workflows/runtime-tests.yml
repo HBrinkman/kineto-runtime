@@ -60,8 +60,15 @@ jobs:
       - name: Prerequisites
         run: scripts/bootstrap.sh check
 
-      - name: Runtime host checks
+      - name: Runtime host checks (engine, wasm parity, Flutter unit tests)
         run: scripts/bootstrap.sh test
+
+      - name: Web example (headless Chromium smoke)
+        run: |
+          # Version pinned by runtimes/web/package.json; installed outside Git.
+          npm install --no-save --no-package-lock playwright@1.61.0
+          npx playwright install --with-deps chromium
+          node examples/web/smoke.mjs
 
       - name: Tree unchanged by the checks
         run: |

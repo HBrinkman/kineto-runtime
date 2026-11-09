@@ -1,0 +1,163 @@
+name: packaging
+
+# Builds the distributable Swift and Flutter packages, validates them, builds
+# clean consumer apps and the example apps against them, and runs the Swift
+# unit tests on the runner's iOS simulator. Never publishes, uploads a release,
+# signs, or deploys to a device. The staged packages are kept as workflow
+# artifacts for review only.
+
+# Runs on every pull request, without a paths filter: the `packaging` job is
+# meant to be a required status check, and a required check that is skipped
+# by a filter never reports and blocks the merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      check_reproducible:
+        description: "Rebuild the XCFramework in an empty target dir and require identical bytes"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packaging:
+    name: packaging
+    # Xcode 26.6 is the image default; local verification used Xcode 27.1.
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      CARGO_TERM_COLOR: never
+      FLATC_VERSION: "25.12.19"
+      # GitHub's sha256 digest for Mac.flatc.binary.zip in the google/flatbuffers v25.12.19 release.
+      FLATC_SHA256: "9340a5f9900b95e34ccadcb06bceec91180cc8b83098d5e966ed6d8d590cbba2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10-16
+        with:
+          toolchain: "1.95.0"
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,aarch64-linux-android,x86_64-linux-android
+
+      - name: flatc (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/flatc"
+          curl -fsSL -o "$RUNNER_TEMP/flatc.zip" \
+            "https://github.com/google/flatbuffers/releases/download/v${FLATC_VERSION}/Mac.flatc.binary.zip"
+          echo "${FLATC_SHA256}  $RUNNER_TEMP/flatc.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/flatc.zip" -d "$RUNNER_TEMP/flatc"
+          chmod +x "$RUNNER_TEMP/flatc/flatc"
+          echo "$RUNNER_TEMP/flatc" >> "$GITHUB_PATH"
+
+      - name: Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+
+      - name: Java 17 and NDK (preinstalled on the image)
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_arm64" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - name: Prerequisites
+        run: scripts/bootstrap.sh check
+
+      - name: Swift XCFramework (build, verify slices, zip, checksum)
+        run: |
+          if [[ "${{ inputs.check_reproducible }}" == "true" ]]; then
+            scripts/package_swift.sh --check-reproducible
+          else
+            scripts/package_swift.sh
+          fi
+          cat build/dist/swift/SHA256SUMS
+
+      - name: Swift unit tests (XCTest on the runner's iOS simulator)
+        run: |
+          set -euo pipefail
+          # First available iPhone simulator on this image; the simulator runs
+          # logic, touch and lifecycle tests but cannot draw with Metal/vello.
+          udid="$(xcrun simctl list devices available -j | python3 -I -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          ios = sorted((r, d["name"], d["udid"]) for r, ds in devices.items() if "iOS" in r for d in ds if d["name"].startswith("iPhone"))
+          print(ios[-1][2])')"
+          xcodebuild test -scheme KinetoRuntime-Package \
+            -destination "platform=iOS Simulator,id=$udid" CODE_SIGNING_ALLOWED=NO
+
+      - name: Swift package builds for device
+        run: |
+          xcodebuild -quiet build-for-testing -scheme KinetoRuntime-Package \
+            -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
+
+      - name: iOS example app (device + simulator build)
+        working-directory: examples/ios-swiftui
+        run: |
+          for dest in "generic/platform=iOS" "generic/platform=iOS Simulator"; do
+            xcodebuild -quiet build -project KinetoExample.xcodeproj -scheme KinetoExample \
+              -destination "$dest" CODE_SIGNING_ALLOWED=NO
+          done
+
+      - name: Swift consumers (root package by path, distribution zip)
+        run: tool/test_swift_consumer.sh
+
+      - name: Android engine libraries
+        run: scripts/bootstrap.sh android
+
+      - name: Flutter package (stage + pub publish --dry-run)
+        run: scripts/package_flutter.sh
+
+      - name: Flutter package host tests
+        run: |
+          scripts/bootstrap.sh host
+          lib="$(cd engine && cargo metadata --format-version 1 --no-deps | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')/debug/libkineto_engine.dylib"
+          cd packages/kineto_runtime
+          flutter pub get --enforce-lockfile
+          KINETO_ENGINE_DYLIB="$lib" flutter test
+
+      - name: Flutter consumer app (web, apk, iOS SPM, iOS CocoaPods, iOS simulator)
+        run: tool/test_flutter_consumer.sh
+
+      - name: Android library and sample app
+        working-directory: runtimes/android
+        run: ./gradlew --no-daemon :KinetoRuntime:assembleRelease :sample:assembleDebug
+
+      - name: Flutter example app (web, apk, iOS)
+        working-directory: packages/kineto_runtime/example
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter build web --release
+          flutter build apk --debug
+          flutter build ios --release --no-codesign
+          ../../../tool/check_runtime_symbols.sh build/ios/iphoneos/Runner.app/Runner
+
+      - name: Tree unchanged by packaging
+        run: |
+          git status --porcelain --untracked-files=no
+          git diff --exit-code
+
+      - name: Keep staged packages for review
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staged-packages-${{ github.sha }}
+          retention-days: 7
+          path: |
+            build/dist/swift/KinetoRuntimeC.xcframework.zip
+            build/dist/swift/KinetoRuntimeC.xcframework.zip.checksum
+            build/dist/swift/SHA256SUMS
+            build/dist/swift/build-info.json
+            build/dist/flutter/pub-dry-run.txt
+            build/dist/flutter/kineto_runtime/BUILD_INFO.json
