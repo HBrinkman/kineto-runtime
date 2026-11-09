@@ -66,6 +66,7 @@ fn build_doc(group_x: f32, group_scale: f32) -> Vec<u8> {
         &GroupArgs {
             child_ids: Some(members),
             mask_child_id: None,
+            solo_child_id: None,
         },
     );
     let group_id = fbb.create_string("group");

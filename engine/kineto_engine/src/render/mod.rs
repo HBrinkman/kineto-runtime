@@ -12,7 +12,7 @@ pub use android_surface::{AndroidRenderSurface, AndroidSurfaceError};
 pub use metal_surface::{MetalRenderSurface, MetalSurfaceError};
 pub use vello_scene::{
     build_render_scene, camera_affine, component_support, document_point, fit_transform,
-    path_segments,
+    paint_order, path_segments, solo_child, sorted_siblings,
     ComponentSupport,
     ContourSegments,
     CubicSegment, RenderCap, RenderClip, RenderColor, RenderCommand, RenderGradientStop,

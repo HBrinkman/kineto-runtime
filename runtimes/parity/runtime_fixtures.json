@@ -316,6 +316,100 @@
       "expect": {
         "loads": true
       }
+    },
+    {
+      "id": "pose_swap_front_arm_on_top",
+      "asset": "engine/kineto_engine/tests/fixtures/pose_runtime.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "hitTestDocumentPoint",
+          "x": 146.3548,
+          "y": 88.171
+        }
+      ],
+      "expect": {
+        "nodeId": "p/armFront"
+      }
+    },
+    {
+      "id": "pose_swap_side_arm_behind_torso",
+      "asset": "engine/kineto_engine/tests/fixtures/pose_runtime.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 1.0
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "p/arm",
+          "key": "soloIndex",
+          "value": 1.0
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "p/arm",
+          "key": "drawOrder",
+          "value": 0.0
+        },
+        {
+          "op": "hitTestDocumentPoint",
+          "x": 146.3548,
+          "y": 88.171
+        }
+      ],
+      "expect": {
+        "nodeId": "p/torso"
+      }
+    },
+    {
+      "id": "scene_swap_group_first_drawing",
+      "asset": "engine/kineto_engine/tests/fixtures/pose_runtime.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "hitTestDocumentPoint",
+          "x": 165.0,
+          "y": 110.0
+        }
+      ],
+      "expect": {
+        "nodeId": "badgeA"
+      }
+    },
+    {
+      "id": "scene_swap_group_keyed_drawing",
+      "asset": "engine/kineto_engine/tests/fixtures/pose_runtime.kvk",
+      "steps": [
+        {
+          "op": "load"
+        },
+        {
+          "op": "advance",
+          "deltaSeconds": 0.6
+        },
+        {
+          "op": "expectOverrideScalar",
+          "nodeId": "badge",
+          "key": "soloIndex",
+          "value": 1.0
+        },
+        {
+          "op": "hitTestDocumentPoint",
+          "x": 165.0,
+          "y": 110.0
+        }
+      ],
+      "expect": {
+        "nodeId": "badgeB"
+      }
     }
   ]
 }

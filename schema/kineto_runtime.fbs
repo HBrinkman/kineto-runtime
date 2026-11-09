@@ -238,6 +238,10 @@ table Group {
   // GroupNode.maskChildId in the editor. Null means no mask, which is what
   // every file written before this field says.
   mask_child_id: string;
+  // issue #214 (append-only): the one child a Swap Group shows (a drawing
+  // swap). Null shows every child, which is what every file written before
+  // this field says. A `SoloIndex` track overrides it per frame.
+  solo_child_id: string;
 }
 
 // ── Text (M3.5) ───────────────────────────────────────────────────────────────
@@ -403,6 +407,11 @@ table AttachBinding {
 }
 
 table Document {
+  // 1: every file up to issue #214. 2: the file may use `Group.solo_child_id`
+  // or the SoloIndex/DrawOrder/BonePositionX/BonePositionY kinds; writers set
+  // 2 only when it does, so a file without them stays readable as version 1.
+  // A version-1 runtime does not read this field and degrades as described at
+  // those kinds.
   version: uint16 = 1;
   name: string (required);
   canvas_width: float = 1920.0;
@@ -542,6 +551,28 @@ enum AnimatedPropertyKind: ubyte {
   StrokeTrimStart      = 33,
   StrokeTrimEnd        = 34,
   StrokeTrimOffset     = 35,
+  // issue #214 (append-only): pose features.
+  //
+  // SoloIndex targets a group: the child it shows, as an index into that
+  // group's `child_ids` (rounded to the nearest whole number). -1, or an index
+  // the group does not have, shows every child.
+  //
+  // DrawOrder targets any node: its position among its siblings — the other
+  // children of the same group, or the other root nodes — never a scene-wide
+  // z-index. Each frame the runtime re-sorts every sibling list that has a
+  // keyed child: a child keyed to v sorts as v (rounded), an unkeyed child as
+  // its own index in the list, ties keep file order.
+  //
+  // BonePositionX/Y target a bone: its joint, in the same space as
+  // `Bone.local_x/local_y`. The bind pose stays the one in the file, so the
+  // artwork the bone carries moves with the joint.
+  //
+  // A runtime older than these kinds ignores them: every child of a group
+  // draws, siblings keep file order and joints stay where the file put them.
+  SoloIndex            = 36,
+  DrawOrder            = 37,
+  BonePositionX        = 38,
+  BonePositionY        = 39,
 }
 
 table KFTrack {
