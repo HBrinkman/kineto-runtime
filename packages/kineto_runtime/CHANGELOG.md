@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0-dev.1 (unreleased)
 
-First packaged pre-release candidate. Not published.
+First development pre-release, for testing on real projects and devices.
 
 - Dart API over the Kineto engine C ABI (`KinetoPlayer`): load `.kvk`
   documents, advance, play/pause, select animations, state-machine inputs

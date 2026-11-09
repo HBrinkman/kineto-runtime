@@ -27,7 +27,7 @@ release notes with `scripts/package_flutter.sh`.
 
 ```yaml
 dependencies:
-  kineto_runtime: ^0.1.0
+  kineto_runtime: 0.1.0-dev.1
 ```
 
 Until a version is published, depend on a built checkout instead; see

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'kineto_runtime'
-  s.version          = '0.1.0'
+  s.version          = '0.1.0-dev.1'
   s.summary          = 'Flutter bridge for the Kineto Rust runtime.'
   s.description      = 'Registers the iOS runtime player platform view and links the Kineto Rust runtime C ABI.'
   s.homepage         = 'https://Kineto.keyvotion.com'
