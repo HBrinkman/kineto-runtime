@@ -707,6 +707,7 @@ fn group_node<'a>(
         &GroupArgs {
             child_ids: Some(child_ids),
             mask_child_id: None,
+            solo_child_id: None,
         },
     );
     let transform = Transform::create(fbb, &TransformArgs::default());
@@ -1105,6 +1106,7 @@ fn stack_group<'a>(
         &GroupArgs {
             child_ids: Some(children),
             mask_child_id: mask_ref,
+            solo_child_id: None,
         },
     );
     let transform = Transform::create(fbb, &TransformArgs::default());
@@ -1139,6 +1141,7 @@ fn build_mask_doc(mask_id: &str, child_ids: &[&str]) -> Vec<u8> {
         &GroupArgs {
             child_ids: Some(children),
             mask_child_id: Some(mask_ref),
+            solo_child_id: None,
         },
     );
     let transform = Transform::create(&mut fbb, &TransformArgs::default());

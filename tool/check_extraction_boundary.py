@@ -77,6 +77,7 @@ ALLOWED_PATHS = [
     "test/fixtures/constraints/shape_constraints.txt",
     "test/fixtures/geometry/path_segments.txt",
     "test/fixtures/layers/body_face_mouth_poses.txt",
+    "test/fixtures/pose/pose_runtime_frames.txt",
     "test/fixtures/stroke_trim_windows.txt",
     "tool/check_extraction_boundary.py",
     "tool/check_binary_paths.py",

@@ -508,7 +508,7 @@ pub fn build_render_scene(document: format::Document<'_>, frame: &EvaluatedFrame
         .map(|node| (node.id(), node))
         .collect();
 
-    for node in paint_order(&document) {
+    for node in paint_order(&document, frame) {
         if !node.visible() {
             continue;
         }
@@ -696,19 +696,6 @@ pub fn camera_affine(
 /// mean it could be grouped, hidden or masked.
 pub const CAMERA_NODE_ID: &str = "__camera__";
 
-/// Clips each command to the mask of the nearest enclosing group that has one.
-///
-/// Runs as a second pass because a mask is a *sibling*: the command that
-/// describes it may not exist yet when the commands it clips are built.
-///
-/// The rule matches `effectiveMaskChildId` in `document_helpers.dart:245`: a
-/// mask counts only when it names a direct child and the group has something
-/// else to clip. A group whose only child is its mask paints that child as
-/// ordinary artwork instead of compositing itself away to nothing.
-///
-/// The mask node keeps drawing. That is what a creative-app clipping mask
-/// means and what `frame_renderer.dart:474-483` does — the base stays visible
-/// and its alpha clips the siblings above it.
 /// Nodes back to front, the order the editor paints them (issue #148,
 /// `RenderStackResolver`): root nodes in `doc.nodes` order, each group in its
 /// `children` order.
@@ -718,7 +705,18 @@ pub const CAMERA_NODE_ID: &str = "__camera__";
 /// background behind a character) drew on top of the whole group. A node
 /// claimed by two groups belongs to the first, and one no walk reaches (a
 /// cycle) does not draw: the editor's rules.
-fn paint_order<'a>(document: &format::Document<'a>) -> Vec<format::Node<'a>> {
+///
+/// The frame changes the walk in two ways (issue #214), both sibling-local
+/// (D5) and both the editor's own rules:
+///
+///  * a Swap Group walks only the child it shows ([`solo_child`]) — and its
+///    clipping mask, which keeps its role;
+///  * a sibling list with a keyed `drawOrder` child is re-sorted first
+///    ([`sorted_siblings`]).
+pub fn paint_order<'a>(
+    document: &format::Document<'a>,
+    frame: &EvaluatedFrame,
+) -> Vec<format::Node<'a>> {
     let nodes = document.nodes().unwrap_or_default();
     let by_id: HashMap<&'a str, format::Node<'a>> =
         nodes.iter().map(|node| (node.id(), node)).collect();
@@ -738,11 +736,12 @@ fn paint_order<'a>(document: &format::Document<'a>) -> Vec<format::Node<'a>> {
     let mut out = Vec::with_capacity(nodes.len());
     // Depth-first with an explicit stack; children are pushed in reverse so
     // the first child pops first.
-    let mut stack: Vec<&'a str> = nodes
+    let roots: Vec<&'a str> = nodes
         .iter()
         .filter(|node| !container.contains_key(node.id()))
         .map(|node| node.id())
         .collect();
+    let mut stack = sorted_siblings(roots, frame);
     stack.reverse();
     while let Some(id) = stack.pop() {
         if !visited.insert(id) {
@@ -753,18 +752,91 @@ fn paint_order<'a>(document: &format::Document<'a>) -> Vec<format::Node<'a>> {
         };
         out.push(node);
         if let Some(group) = node.component_as_group() {
+            let shown = solo_child(node.id(), group, frame);
+            let mask = group.mask_child_id();
             let children: Vec<&'a str> = group
                 .child_ids()
                 .unwrap_or_default()
                 .iter()
                 .filter(|child| container.get(child) == Some(&id))
+                .filter(|child| match shown {
+                    Some(solo) => *child == solo || Some(*child) == mask,
+                    None => true,
+                })
                 .collect();
+            let children = sorted_siblings(children, frame);
             stack.extend(children.into_iter().rev());
         }
     }
     out
 }
 
+/// The child a group shows this frame, or `None` for every child.
+///
+/// A `soloIndex` override wins over the file's `solo_child_id`: it indexes
+/// the group's `child_ids` as written, and -1 — or an index the group does not
+/// have — shows every child (`soloChildAt` in the editor). The file's own
+/// solo is taken as written, as `paintedChildren` takes it.
+pub fn solo_child<'a>(
+    group_id: &str,
+    group: Group<'a>,
+    frame: &EvaluatedFrame,
+) -> Option<&'a str> {
+    let children = group.child_ids().unwrap_or_default();
+    let keyed = frame
+        .node_overrides
+        .get(group_id)
+        .and_then(|values| values.scalar("soloIndex"));
+    match keyed {
+        Some(index) => {
+            let index = index.round();
+            if index >= 0.0 && (index as usize) < children.len() {
+                Some(children.get(index as usize))
+            } else {
+                None
+            }
+        }
+        None => group.solo_child_id(),
+    }
+}
+
+/// [`ids`] — one sibling list, back to front — re-sorted by this frame's
+/// `drawOrder` overrides: a keyed sibling sorts as its rounded value, an
+/// unkeyed one as its own position, ties keep the list's order. The rule of
+/// `withPosedStackOrder` in the editor. A list with no keyed sibling comes
+/// back untouched.
+pub fn sorted_siblings<'a>(ids: Vec<&'a str>, frame: &EvaluatedFrame) -> Vec<&'a str> {
+    let keyed = |id: &str| {
+        frame
+            .node_overrides
+            .get(id)
+            .and_then(|values| values.scalar("drawOrder"))
+    };
+    if !ids.iter().any(|id| keyed(id).is_some()) {
+        return ids;
+    }
+    let mut indexed: Vec<(usize, &'a str, f64)> = ids
+        .into_iter()
+        .enumerate()
+        .map(|(i, id)| (i, id, keyed(id).map(f64::round).unwrap_or(i as f64)))
+        .collect();
+    indexed.sort_by(|a, b| a.2.total_cmp(&b.2).then(a.0.cmp(&b.0)));
+    indexed.into_iter().map(|(_, id, _)| id).collect()
+}
+
+/// Clips each command to the mask of the nearest enclosing group that has one.
+///
+/// Runs as a second pass because a mask is a *sibling*: the command that
+/// describes it may not exist yet when the commands it clips are built.
+///
+/// The rule matches `effectiveMaskChildId` in `document_helpers.dart:245`: a
+/// mask counts only when it names a direct child and the group has something
+/// else to clip. A group whose only child is its mask paints that child as
+/// ordinary artwork instead of compositing itself away to nothing.
+///
+/// The mask node keeps drawing. That is what a creative-app clipping mask
+/// means and what `frame_renderer.dart:474-483` does — the base stays visible
+/// and its alpha clips the siblings above it.
 fn attach_clip_masks(document: &format::Document<'_>, commands: &mut [RenderCommand]) {
     let groups: HashMap<&str, Group<'_>> = document
         .nodes()

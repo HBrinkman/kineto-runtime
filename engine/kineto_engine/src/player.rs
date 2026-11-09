@@ -688,8 +688,13 @@ impl KinetoPlayer {
         let attached = crate::hierarchy::attach_worlds(&document, &frame.fk);
         let world =
             crate::hierarchy::world_affines_attached(&document, &frame.node_overrides, &attached);
-        let nodes = document.nodes().unwrap_or_default();
-        for node in nodes.iter().rev() {
+        // Front to back in this frame's paint order (issue #214): a drawing a
+        // Swap Group does not show is not on screen, and a restack changes
+        // which of two overlapping nodes a tap lands on.
+        for node in crate::render::vello_scene::paint_order(&document, &frame)
+            .into_iter()
+            .rev()
+        {
             if !node.visible() {
                 continue;
             }
@@ -830,6 +835,16 @@ impl KinetoPlayer {
             // keyed by property (issue #111).
             if let Some(length) = overrides.scalar("boneLength") {
                 bone.length = length.max(0.0);
+            }
+            // A keyed joint move (issue #214), in the space of `local_x/y`.
+            // Only the posed bone moves: the bind pose skinning measures
+            // against is solved from the file, so the artwork the bone
+            // carries follows the joint — as `bonesForFrame` does in Dart.
+            if let Some(x) = overrides.scalar("bonePositionX") {
+                bone.local_position.x = x;
+            }
+            if let Some(y) = overrides.scalar("bonePositionY") {
+                bone.local_position.y = y;
             }
         }
 
