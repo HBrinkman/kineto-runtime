@@ -48,7 +48,11 @@ TARGET_DIR="$(
 )"
 export IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET"
 export ZERO_AR_DATE=1
-export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$TARGET_DIR=/kineto-build --remap-path-prefix=$ROOT=/kineto-runtime --remap-path-prefix=$CARGO_HOME_DIR=/cargo"
+# rustc applies the last matching prefix, so the target directory (inside the
+# checkout) comes after the checkout. Cargo spells the default target dir as
+# written in engine/.cargo/config.toml, unnormalised (engine/../build/cargo),
+# so that spelling is remapped too.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$CARGO_HOME_DIR=/cargo --remap-path-prefix=$ROOT=/kineto-runtime --remap-path-prefix=$TARGET_DIR=/kineto-build --remap-path-prefix=$ROOT/engine/../build/cargo=/kineto-build"
 
 echo "==> building the engine for iOS $IOS_DEPLOYMENT_TARGET (device + both simulator slices)"
 (

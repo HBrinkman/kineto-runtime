@@ -87,6 +87,7 @@ package() {
   "$ROOT/tool/verify_xcframework.sh" "$src"
   stage "$src" "$stage_dir"
   "$ROOT/tool/verify_xcframework.sh" "$stage_dir/$NAME"
+  python3 -I "$ROOT/tool/check_binary_paths.py" "$stage_dir/$NAME"
   python3 -I "$ROOT/tool/deterministic_zip.py" --base "$stage_dir" --output "$out/$NAME.zip" \
     "$NAME" LICENSE THIRD_PARTY_NOTICES.md licenses >/dev/null
 }
