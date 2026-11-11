@@ -76,12 +76,17 @@ let package = Package(
         .package(
             name: "FlutterFramework",
             path: "../FlutterFramework"
-        ),
-        .package(
-            path: "KinetoRuntime"
         )
     ],
     targets: [
+        // The engine's C ABI. In a repository checkout this is a symlink to
+        // runtimes/swift/KinetoRuntime/Artifacts (libraries built by
+        // `scripts/bootstrap.sh ios`); in the published package it is a real
+        // directory with the prebuilt libraries (scripts/package_flutter.sh).
+        .binaryTarget(
+            name: "KinetoRuntimeC",
+            path: "KinetoRuntimeC.xcframework"
+        ),
         .target(
             name: "kineto_runtime",
             dependencies: [
@@ -89,10 +94,7 @@ let package = Package(
                     name: "FlutterFramework",
                     package: "FlutterFramework"
                 ),
-                .product(
-                    name: "KinetoRuntimeC",
-                    package: "KinetoRuntime"
-                )
+                "KinetoRuntimeC"
             ],
             linkerSettings: ffiLinkRoots.flatMap { symbol in
                 [.unsafeFlags(["-Xlinker", "-u", "-Xlinker", "_\(symbol)"])]

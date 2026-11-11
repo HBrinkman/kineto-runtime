@@ -36,20 +36,26 @@ from pathlib import Path
 
 # Top-level layout the extraction may contain. Anything else is a violation.
 ALLOWED_PATHS = [
+    ".github/workflows/packaging.yml",
     ".github/workflows/runtime-tests.yml",
     ".gitignore",
     "CONTRIBUTING.md",
     "LICENSE",
+    "Package.swift",
     "PROVENANCE.md",
     "README.md",
     "SECURITY.md",
     "THIRD_PARTY_NOTICES.md",
     "docs/BUILDING.md",
     "docs/PLATFORM_SUPPORT.md",
+    "docs/RELEASING.md",
     "engine/.cargo/config.toml",
     "engine/Cargo.lock",
     "engine/Cargo.toml",
     "engine/kineto_engine/**",
+    "examples/README.md",
+    "examples/ios-swiftui/**",
+    "examples/web/**",
     "licenses/**",
     "packages/kineto_runtime/**",
     "runtimes/android/**",
@@ -60,6 +66,8 @@ ALLOWED_PATHS = [
     "scripts/bootstrap.sh",
     "scripts/build_runtime_android.sh",
     "scripts/build_runtime_web.sh",
+    "scripts/package_flutter.sh",
+    "scripts/package_swift.sh",
     "scripts/runtime_android_flutter_smoke.sh",
     # Shared parity tables the engine tests read; text, generated upstream.
     "test/fixtures/background/background_parity.txt",
@@ -72,11 +80,16 @@ ALLOWED_PATHS = [
     "test/fixtures/pose/pose_runtime_frames.txt",
     "test/fixtures/stroke_trim_windows.txt",
     "tool/check_extraction_boundary.py",
+    "tool/check_binary_paths.py",
     "tool/check_runtime_symbols.sh",
+    "tool/deterministic_zip.py",
     "tool/ensure_ios_runtime_artifacts.sh",
     "tool/refresh_runtime_xcframework.sh",
     "tool/rust_license_inventory.py",
     "tool/test_extraction_boundary.py",
+    "tool/test_flutter_consumer.sh",
+    "tool/test_swift_consumer.sh",
+    "tool/verify_xcframework.sh",
 ]
 
 # Explicitly forbidden even if a future allowlist entry is too broad.

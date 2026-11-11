@@ -29,43 +29,77 @@ if [[ ! -d "$XC" ]]; then
   exit 2
 fi
 
-echo "==> building the engine for iOS (device + both simulator slices)"
+ROOT="$(pwd)"
+
+# Reproducible-build inputs. The same commit, toolchain (rust-toolchain pinned
+# by docs/BUILDING.md) and Cargo.lock then produce the same archive bytes on
+# any machine, whatever the checkout or cargo home path:
+#   - absolute paths baked into panic locations and file!() are remapped;
+#   - the deployment target matches Package.swift (iOS 15), so the binaries
+#     do not depend on the host Xcode's default;
+#   - ZERO_AR_DATE makes Apple's ar/ranlib/libtool/strip write zero mtimes.
+# CARGO_TARGET_DIR is remapped too: generated FlatBuffers code is include!d
+# from OUT_DIR.
+IOS_DEPLOYMENT_TARGET="${KINETO_IOS_DEPLOYMENT_TARGET:-15.0}"
+CARGO_HOME_DIR="${CARGO_HOME:-$HOME/.cargo}"
+TARGET_DIR="$(
+  cd engine && cargo metadata --format-version 1 --no-deps |
+    python3 -I -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])'
+)"
+export IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET"
+export ZERO_AR_DATE=1
+# rustc applies the last matching prefix, so the target directory (inside the
+# checkout) comes after the checkout. Cargo spells the default target dir as
+# written in engine/.cargo/config.toml, unnormalised (engine/../build/cargo),
+# so that spelling is remapped too.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$CARGO_HOME_DIR=/cargo --remap-path-prefix=$ROOT=/kineto-runtime --remap-path-prefix=$TARGET_DIR=/kineto-build --remap-path-prefix=$ROOT/engine/../build/cargo=/kineto-build"
+
+echo "==> building the engine for iOS $IOS_DEPLOYMENT_TARGET (device + both simulator slices)"
 (
   cd engine
   for target in aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios; do
-    cargo build --release --target "$target" --features metal-render
+    cargo build --locked --release -p kineto_engine --target "$target" --features metal-render
   done
 )
 
-# Ask cargo where it put things rather than assuming engine/target. The output
-# directory moved into the Flutter build directory (engine/.cargo/config.toml)
-# and CARGO_TARGET_DIR can move it again, so a hardcoded path here would break
+# TARGET_DIR (above) is asked of cargo rather than assumed: the output
+# directory moved into <repo>/build/cargo (engine/.cargo/config.toml) and
+# CARGO_TARGET_DIR can move it again, so a hardcoded path would break
 # silently — the copies below would fail, or worse, copy a stale artifact.
-TARGET_DIR="$(
-  cd engine && cargo metadata --format-version 1 --no-deps |
-    python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])'
-)"
 if [[ ! -d "$TARGET_DIR" ]]; then
   echo "error: cargo reports a target directory that does not exist: $TARGET_DIR" >&2
   exit 2
 fi
 
-echo "==> refreshing $XC"
+# KINETO_XCFRAMEWORK_OUT writes a separate copy instead of the checkout's
+# Artifacts tree (scripts/package_swift.sh --check-reproducible uses it).
+OUT_XC="${KINETO_XCFRAMEWORK_OUT:-$XC}"
+if [[ "$OUT_XC" != "$XC" ]]; then
+  rm -rf "$OUT_XC"
+  mkdir -p "$OUT_XC/ios-arm64/Headers" "$OUT_XC/ios-arm64_x86_64-simulator/Headers"
+  cp "$XC/Info.plist" "$OUT_XC/Info.plist"
+  cp "$XC/ios-arm64/Headers/module.modulemap" "$OUT_XC/ios-arm64/Headers/"
+  cp "$XC/ios-arm64_x86_64-simulator/Headers/module.modulemap" "$OUT_XC/ios-arm64_x86_64-simulator/Headers/"
+fi
+
+echo "==> refreshing $OUT_XC"
 cp "$TARGET_DIR/aarch64-apple-ios/release/libkineto_engine.a" \
-   "$XC/ios-arm64/libkineto_engine.a"
+   "$OUT_XC/ios-arm64/libkineto_engine.a"
 lipo -create \
   "$TARGET_DIR/aarch64-apple-ios-sim/release/libkineto_engine.a" \
   "$TARGET_DIR/x86_64-apple-ios/release/libkineto_engine.a" \
-  -output "$XC/ios-arm64_x86_64-simulator/libkineto_engine_sim.a"
+  -output "$OUT_XC/ios-arm64_x86_64-simulator/libkineto_engine_sim.a"
 
 # `build.rs` regenerates the header through cbindgen on every cargo build, so
 # it is current by the time we get here.
-cp "$HEADER" "$XC/ios-arm64/Headers/kineto_engine.h"
-cp "$HEADER" "$XC/ios-arm64_x86_64-simulator/Headers/kineto_engine.h"
-cp "$HEADER" runtimes/swift/KinetoRuntime/Artifacts/Headers/kineto_engine.h
+cp "$HEADER" "$OUT_XC/ios-arm64/Headers/kineto_engine.h"
+cp "$HEADER" "$OUT_XC/ios-arm64_x86_64-simulator/Headers/kineto_engine.h"
+if [[ "$OUT_XC" == "$XC" ]]; then
+  cp "$HEADER" runtimes/swift/KinetoRuntime/Artifacts/Headers/kineto_engine.h
+fi
 
 echo "==> slices"
-lipo -info "$XC/ios-arm64_x86_64-simulator/libkineto_engine_sim.a"
+lipo -info "$OUT_XC/ios-arm64_x86_64-simulator/libkineto_engine_sim.a"
 
 echo "==> done. Verify with:"
 echo "   cd runtimes/swift/KinetoRuntime && xcodebuild -scheme KinetoRuntime-Package \\"

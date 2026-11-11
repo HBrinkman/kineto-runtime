@@ -1,27 +1,26 @@
 Pod::Spec.new do |s|
   s.name             = 'kineto_runtime'
-  s.version          = '0.1.0'
+  s.version          = '0.1.0-dev.1'
   s.summary          = 'Flutter bridge for the Kineto Rust runtime.'
   s.description      = 'Registers the iOS runtime player platform view and links the Kineto Rust runtime C ABI.'
   s.homepage         = 'https://Kineto.keyvotion.com'
-  s.license          = { :type => 'MIT' }
+  s.license          = { :type => 'MIT', :file => '../LICENSE' }
   s.author           = { 'Kineto' => 'hello@keyvotion.com' }
   s.source           = { :path => '.' }
   # CocoaPods remains a fallback for Flutter apps that have not enabled SPM.
   # Both integrations compile the same bridge source.
   s.source_files     = 'kineto_runtime/Sources/kineto_runtime/**/*'
   s.dependency 'Flutter'
-  s.platform = :ios, '18.0'
+  s.platform = :ios, '15.0'
   s.swift_version = '5.0'
   s.static_framework = true
 
-  artifacts = File.expand_path(
-    '../../../runtimes/swift/KinetoRuntime/Artifacts',
-    File.realpath(__dir__)
-  )
-  headers = File.join(artifacts, 'Headers')
+  # Same XCFramework the Swift package uses: a symlink into runtimes/ in a
+  # repository checkout, a real directory in the published package. realpath
+  # resolves the link so Xcode gets a path that exists from any directory.
+  xcframework = File.realpath(File.join(__dir__, 'kineto_runtime', 'KinetoRuntimeC.xcframework'))
+  headers = File.join(xcframework, 'ios-arm64', 'Headers')
   module_map = File.join(headers, 'module.modulemap')
-  xcframework = File.join(artifacts, 'KinetoRuntimeC.xcframework')
   device_lib = File.join(xcframework, 'ios-arm64')
   simulator_lib = File.join(xcframework, 'ios-arm64_x86_64-simulator')
 

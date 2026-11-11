@@ -100,6 +100,15 @@ if [[ ! -d "${TARGET_DIR}" && "${TARGET_DIR}" != /* ]]; then
   exit 1
 fi
 
+# These libraries are bundled into the published Flutter package. Remap the
+# checkout, cargo home and target directory out of panic locations and file!()
+# so no local path is distributed (same flags as the iOS build).
+CARGO_HOME_DIR="${CARGO_HOME:-$HOME/.cargo}"
+# rustc applies the last matching prefix: the target dir (inside the checkout)
+# goes last, in both cargo's normalised and engine/.cargo/config.toml's
+# unnormalised (engine/../build/cargo) spelling.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=${CARGO_HOME_DIR}=/cargo --remap-path-prefix=${ROOT_DIR}=/kineto-runtime --remap-path-prefix=${TARGET_DIR}=/kineto-build --remap-path-prefix=${ROOT_DIR}/engine/../build/cargo=/kineto-build"
+
 # Every native a Kotlin host declares and every C entry point Dart can look up.
 # A symbol missing from the .so links fine and fails on the device, at the call.
 expected_symbols() {
@@ -121,7 +130,7 @@ for entry in "${TARGETS[@]}"; do
   rustup target add "${target}"
 
   echo "→ building ${CRATE} for ${target} (${abi})"
-  (cd "${ENGINE_DIR}" && cargo build --release -p "${CRATE}" --target "${target}" --features "${ANDROID_FEATURES}")
+  (cd "${ENGINE_DIR}" && cargo build --locked --release -p "${CRATE}" --target "${target}" --features "${ANDROID_FEATURES}")
 
   src="${TARGET_DIR}/${target}/release/${LIB_NAME}"
   if [[ ! -f "${src}" ]]; then
